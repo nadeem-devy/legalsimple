@@ -4,9 +4,11 @@ import { SUPPORTED_STATES, getCourtName } from "@/config/states";
 import { PRACTICE_AREAS, getDocumentTypeName } from "@/config/practice-areas";
 import { format } from "date-fns";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+function getAnthropic() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  });
+}
 
 export async function generateDocument(
   caseData: Case,
@@ -65,7 +67,7 @@ ${caseData.desired_outcome || "[DESIRED OUTCOME]"}
 
 Generate a complete, properly formatted ${documentTitle} document ready for filing.`;
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
     system: systemPrompt,

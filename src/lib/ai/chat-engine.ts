@@ -3,9 +3,11 @@ import { getSystemPrompt } from "./prompts/system-prompt";
 import { StateCode } from "@/config/states";
 import { PracticeAreaCode } from "@/config/practice-areas";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+function getAnthropic() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  });
+}
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -47,7 +49,7 @@ export async function chat(
 ): Promise<ChatResponse> {
   const systemPrompt = getSystemPrompt(userState, practiceArea);
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropic().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 2048,
     system: systemPrompt,
@@ -97,7 +99,7 @@ export async function streamChat(
 
   let fullMessage = "";
 
-  const stream = anthropic.messages.stream({
+  const stream = getAnthropic().messages.stream({
     model: "claude-sonnet-4-20250514",
     max_tokens: 2048,
     system: systemPrompt,

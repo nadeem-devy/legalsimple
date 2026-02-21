@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+  });
+}
 
 function buildSystemPrompt(): string {
   return `You are an Arizona family court legal writing assistant embedded in a divorce intake form. Your ONLY job is to take a user's rough, incomplete, or informal answer to a legal question and transform it into a complete, grammatically correct, professionally written response suitable for an Arizona court filing.
@@ -115,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       max_tokens: 1024,
       messages: [

@@ -5,9 +5,11 @@ import { getSystemPrompt } from "@/lib/ai/prompts/system-prompt";
 import { StateCode } from "@/config/states";
 import { PracticeAreaCode } from "@/config/practice-areas";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+function getAnthropic() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const anthropicStream = anthropic.messages.stream({
+          const anthropicStream = getAnthropic().messages.stream({
             model: "claude-sonnet-4-20250514",
             max_tokens: 2048,
             system: systemPrompt,
