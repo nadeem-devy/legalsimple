@@ -1,0 +1,32 @@
+<svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shield icon -->
+  <g transform="translate(4, 0)">
+    <path
+      d="M20 2L5 8.5V16C5 25 11 33.5 20 36C29 33.5 35 25 35 16V8.5L20 2Z"
+      fill="#059669"
+      fill-opacity="0.1"
+      stroke="#059669"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M13 12V25H21"
+      stroke="#1e293b"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M27 13.5C27 13.5 25.5 12 23 12C20.5 12 19 13.5 19 15C19 16.5 20.5 17.5 23 18C25.5 18.5 27 19.5 27 21C27 22.5 25.5 24 23 24C20.5 24 19 22.5 19 22.5"
+      stroke="#059669"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+  <!-- Text -->
+  <text x="52" y="30" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#1e293b">
+    <tspan font-weight="700">Legal</tspan><tspan font-weight="300" fill="#059669">Simple</tspan>
+  </text>
+</svg>

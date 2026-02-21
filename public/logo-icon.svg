@@ -1,0 +1,28 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Modern shield shape -->
+  <path
+    d="M24 4L6 12V22C6 33.05 13.65 43.28 24 46C34.35 43.28 42 33.05 42 22V12L24 4Z"
+    fill="#059669"
+    fill-opacity="0.1"
+    stroke="#059669"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Stylized L -->
+  <path
+    d="M16 16V32H26"
+    stroke="#1e293b"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Stylized S -->
+  <path
+    d="M32 18C32 18 30 16 27 16C24 16 22 18 22 20C22 22 24 23 27 24C30 25 32 26 32 28C32 30 30 32 27 32C24 32 22 30 22 30"
+    stroke="#059669"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

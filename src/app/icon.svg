@@ -1,0 +1,28 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Solid shield background -->
+  <path
+    d="M16 1L2 7V15C2 23.37 8.1 31.02 16 33C23.9 31.02 30 23.37 30 15V7L16 1Z"
+    fill="#059669"
+  />
+  <!-- Inner shield highlight -->
+  <path
+    d="M16 3L4 8.5V15C4 22.25 9.35 28.85 16 30.7C22.65 28.85 28 22.25 28 15V8.5L16 3Z"
+    fill="#047857"
+  />
+  <!-- Bold L -->
+  <path
+    d="M9 9V22H16"
+    stroke="white"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Bold S -->
+  <path
+    d="M23 12C23 12 21.5 10 19 10C16.5 10 15 11.5 15 13C15 14.5 16.5 15.5 19 16.5C21.5 17.5 23 18.5 23 20C23 21.5 21.5 23 19 23C16.5 23 15 21 15 21"
+    stroke="white"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

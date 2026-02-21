@@ -1,0 +1,1 @@
+export { PaternityChatInterface } from './PaternityChatInterface';
