@@ -447,14 +447,17 @@ function updateDataFromAnswer(
                 if (section.orderDate) data.ldm_orderDate = section.orderDate;
                 if (section.pageNumber) data.ldm_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.ldm_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.ldm_currentOrderText = section.verbatimText;
               } else if (section.type === 'parenting_time') {
                 if (section.orderDate) data.pt_orderDate = section.orderDate;
                 if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
               } else if (section.type === 'child_support') {
                 if (section.orderDate) data.cs_orderDate = section.orderDate;
                 if (section.pageNumber) data.cs_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.cs_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.cs_currentOrderText = section.verbatimText;
               }
             }
           }

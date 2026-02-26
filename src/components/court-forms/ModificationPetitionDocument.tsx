@@ -262,6 +262,12 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
               On {courtDate(modification.ldm.orderDate)}, {modification.ldm.courtName || 'the Court'} entered orders regarding Legal Decision Making, found at {formatPageRef(modification.ldm.pageNumber)}, {formatParagraphRef(modification.ldm.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
 
+            {modification.ldm.currentOrderText && (
+              <NumberedParagraph num={++paraNum}>
+                The current order states: &ldquo;{modification.ldm.currentOrderText}&rdquo;
+              </NumberedParagraph>
+            )}
+
             <NumberedParagraph num={++paraNum}>
               {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.
             </NumberedParagraph>
@@ -286,6 +292,12 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             <NumberedParagraph num={++paraNum}>
               On {courtDate(modification.pt.orderDate)}, {modification.pt.courtName || 'the Court'} entered orders regarding Parenting Time, found at {formatPageRef(modification.pt.pageNumber)}, {formatParagraphRef(modification.pt.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
+
+            {modification.pt.currentOrderText && (
+              <NumberedParagraph num={++paraNum}>
+                The current order states: &ldquo;{modification.pt.currentOrderText}&rdquo;
+              </NumberedParagraph>
+            )}
 
             <NumberedParagraph num={++paraNum}>
               {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.
@@ -317,6 +329,12 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             <NumberedParagraph num={++paraNum}>
               On {courtDate(modification.cs.orderDate)}, {modification.cs.courtName || 'the Court'} entered orders regarding Child Support, found at {formatPageRef(modification.cs.pageNumber)}, {formatParagraphRef(modification.cs.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
+
+            {modification.cs.currentOrderText && (
+              <NumberedParagraph num={++paraNum}>
+                The current order states: &ldquo;{modification.cs.currentOrderText}&rdquo;
+              </NumberedParagraph>
+            )}
 
             <NumberedParagraph num={++paraNum}>
               {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.

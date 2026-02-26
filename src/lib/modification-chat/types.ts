@@ -80,6 +80,7 @@ export interface ExtractedOrderData {
     paragraphNumber?: string;
     orderDate?: string;
     summary?: string;
+    verbatimText?: string;
   }>;
   confidence: 'high' | 'medium' | 'low';
 }
@@ -120,6 +121,7 @@ export interface ModificationChatData {
   ldm_paragraphNumber: string;
   ldm_whyChange: string;
   ldm_modificationType: string;
+  ldm_currentOrderText: string;
 
   // Parenting Time modification
   pt_orderDate: string;
@@ -130,6 +132,7 @@ export interface ModificationChatData {
   pt_newSchedule: string;
   pt_supervised: boolean;
   pt_supervisedReason: string;
+  pt_currentOrderText: string;
 
   // Child Support modification
   cs_orderDate: string;
@@ -137,6 +140,7 @@ export interface ModificationChatData {
   cs_pageNumber: string;
   cs_paragraphNumber: string;
   cs_whyChange: string;
+  cs_currentOrderText: string;
 }
 
 export const initialModificationChatData: ModificationChatData = {
@@ -166,6 +170,7 @@ export const initialModificationChatData: ModificationChatData = {
   ldm_paragraphNumber: '',
   ldm_whyChange: '',
   ldm_modificationType: '',
+  ldm_currentOrderText: '',
 
   pt_orderDate: '',
   pt_courtName: '',
@@ -175,10 +180,12 @@ export const initialModificationChatData: ModificationChatData = {
   pt_newSchedule: '',
   pt_supervised: false,
   pt_supervisedReason: '',
+  pt_currentOrderText: '',
 
   cs_orderDate: '',
   cs_courtName: '',
   cs_pageNumber: '',
   cs_paragraphNumber: '',
   cs_whyChange: '',
+  cs_currentOrderText: '',
 };

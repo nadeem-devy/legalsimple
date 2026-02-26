@@ -196,6 +196,11 @@ export function OrderReferencePanel({
                             {section.summary}
                           </p>
                         )}
+                        {section.verbatimText && (
+                          <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 leading-relaxed italic">
+                            &ldquo;{section.verbatimText}&rdquo;
+                          </div>
+                        )}
                       </div>
                     </AccordionContent>
                   </AccordionItem>

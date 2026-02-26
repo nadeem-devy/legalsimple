@@ -258,6 +258,7 @@ export interface NormalizedPDFData {
       paragraphNumber: string;
       whyChange: string;
       modificationType: string;
+      currentOrderText: string;
     };
     // Parenting Time
     pt?: {
@@ -269,6 +270,7 @@ export interface NormalizedPDFData {
       newSchedule: string;
       supervised: boolean;
       supervisedReason: string;
+      currentOrderText: string;
     };
     // Child Support
     cs?: {
@@ -277,6 +279,7 @@ export interface NormalizedPDFData {
       pageNumber: string;
       paragraphNumber: string;
       whyChange: string;
+      currentOrderText: string;
     };
   };
 
@@ -829,6 +832,7 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         paragraphNumber: data.ldm_paragraphNumber || '',
         whyChange: data.ldm_whyChange || '',
         modificationType: data.ldm_modificationType || '',
+        currentOrderText: data.ldm_currentOrderText || '',
       } : undefined,
 
       pt: modificationsSelected.includes('parenting_time') ? {
@@ -840,6 +844,7 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         newSchedule: data.pt_newSchedule || '',
         supervised: data.pt_supervised || false,
         supervisedReason: data.pt_supervisedReason || '',
+        currentOrderText: data.pt_currentOrderText || '',
       } : undefined,
 
       cs: modificationsSelected.includes('child_support') ? {
@@ -848,6 +853,7 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         pageNumber: data.cs_pageNumber || '',
         paragraphNumber: data.cs_paragraphNumber || '',
         whyChange: data.cs_whyChange || '',
+        currentOrderText: data.cs_currentOrderText || '',
       } : undefined,
     },
   };

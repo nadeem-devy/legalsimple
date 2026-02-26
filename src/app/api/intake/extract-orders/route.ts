@@ -26,7 +26,8 @@ Extract the following information and return ONLY valid JSON (no markdown, no co
       "pageNumber": "page number as a string or null",
       "paragraphNumber": "paragraph number as a string or null",
       "orderDate": "MM/DD/YYYY or null",
-      "summary": "brief 1-2 sentence summary of what this section of the order says"
+      "summary": "brief 1-2 sentence summary of what this section of the order says",
+      "verbatimText": "the EXACT word-for-word text of this section as it appears in the order"
     }
   ],
   "confidence": "high or medium or low"
@@ -40,6 +41,7 @@ RULES:
 - The "type" field should classify each section as one of: "legal_decision_making", "parenting_time", "child_support", or "other".
 - Page numbers should be the actual page number in the document where the section appears.
 - Paragraph numbers should be the paragraph/section number as written in the order.
+- IMPORTANT: For "verbatimText", copy the EXACT text of each section/paragraph from the court order word-for-word. Include the complete paragraph text as written in the document. This is critical for the modification petition to reference the original order language.
 - Set confidence to "high" if the document is clearly a court order with readable text, "medium" if some fields are uncertain, "low" if the text is largely unreadable or not a court order.`;
 
 export async function POST(request: NextRequest) {
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
     // Send PDF directly to OpenAI GPT-4o for extraction
     const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         {
           role: "system",
