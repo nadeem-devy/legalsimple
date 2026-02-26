@@ -14,7 +14,8 @@ export type QuestionType =
   | 'ssn4'
   | 'textarea'
   | 'info'
-  | 'stop';
+  | 'stop'
+  | 'file_upload';
 
 export interface QuestionOption {
   value: string;
@@ -57,6 +58,7 @@ export interface ChatMessage {
   questionId?: string;
   options?: QuestionOption[];
   inputType?: QuestionType;
+  autoFilled?: boolean;
 }
 
 export interface ChildInfo {
@@ -65,7 +67,28 @@ export interface ChildInfo {
   dateOfBirth: string;
 }
 
+// Data extracted from uploaded court orders via AI
+export interface ExtractedOrderData {
+  caseNumber?: string;
+  petitionerName?: string;
+  respondentName?: string;
+  courtName?: string;
+  children?: Array<{ name: string; dateOfBirth?: string }>;
+  sections?: Array<{
+    type: 'legal_decision_making' | 'parenting_time' | 'child_support' | 'other';
+    pageNumber?: string;
+    paragraphNumber?: string;
+    orderDate?: string;
+    summary?: string;
+  }>;
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export interface ModificationChatData {
+  // Uploaded Orders
+  hasUploadedOrders: boolean;
+  extractedOrderData?: ExtractedOrderData;
+
   // Case Information
   caseNumber: string;
   isSameCounty: boolean;
@@ -94,20 +117,17 @@ export interface ModificationChatData {
   ldm_orderDate: string;
   ldm_courtName: string;
   ldm_pageNumber: string;
-  ldm_sectionParagraph: string;
+  ldm_paragraphNumber: string;
   ldm_whyChange: string;
-  ldm_changeInCircumstance: string;
   ldm_modificationType: string;
 
   // Parenting Time modification
   pt_orderDate: string;
   pt_courtName: string;
   pt_pageNumber: string;
-  pt_sectionParagraph: string;
+  pt_paragraphNumber: string;
   pt_whyChange: string;
-  pt_changeInCircumstance: string;
   pt_newSchedule: string;
-  pt_customScheduleDetails: string;
   pt_supervised: boolean;
   pt_supervisedReason: string;
 
@@ -115,12 +135,13 @@ export interface ModificationChatData {
   cs_orderDate: string;
   cs_courtName: string;
   cs_pageNumber: string;
-  cs_sectionParagraph: string;
+  cs_paragraphNumber: string;
   cs_whyChange: string;
-  cs_changeInCircumstance: string;
 }
 
 export const initialModificationChatData: ModificationChatData = {
+  hasUploadedOrders: false,
+
   caseNumber: '',
   isSameCounty: false,
   isDomesticated: false,
@@ -142,26 +163,22 @@ export const initialModificationChatData: ModificationChatData = {
   ldm_orderDate: '',
   ldm_courtName: '',
   ldm_pageNumber: '',
-  ldm_sectionParagraph: '',
+  ldm_paragraphNumber: '',
   ldm_whyChange: '',
-  ldm_changeInCircumstance: '',
   ldm_modificationType: '',
 
   pt_orderDate: '',
   pt_courtName: '',
   pt_pageNumber: '',
-  pt_sectionParagraph: '',
+  pt_paragraphNumber: '',
   pt_whyChange: '',
-  pt_changeInCircumstance: '',
   pt_newSchedule: '',
-  pt_customScheduleDetails: '',
   pt_supervised: false,
   pt_supervisedReason: '',
 
   cs_orderDate: '',
   cs_courtName: '',
   cs_pageNumber: '',
-  cs_sectionParagraph: '',
+  cs_paragraphNumber: '',
   cs_whyChange: '',
-  cs_changeInCircumstance: '',
 };

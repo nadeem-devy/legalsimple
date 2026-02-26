@@ -33,6 +33,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { LogoIcon } from "@/components/ui/logo";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { ChatMessage, QuestionType } from "@/lib/paternity-chat/types";
 import {
   ChatState,
@@ -191,6 +192,13 @@ export function PaternityChatInterface({
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Validate that the stored currentQuestionId still exists in the question set
+        // (guards against stale state after question flow changes)
+        if (parsed.currentQuestionId && !getQuestionById(parsed.currentQuestionId) && parsed.currentQuestionId !== 'complete') {
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(historyKey);
+          return startChat();
+        }
         parsed.messages = parsed.messages.map((m: ChatMessage) => ({
           ...m,
           timestamp: new Date(m.timestamp),
@@ -218,9 +226,13 @@ export function PaternityChatInterface({
     return [];
   });
 
-  // Persist chat state to localStorage
+  // Persist chat state to localStorage (clear on completion/stop)
   useEffect(() => {
-    if (chatState.isComplete) return;
+    if (chatState.isComplete || chatState.isStopped) {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(historyKey);
+      return;
+    }
     try {
       localStorage.setItem(storageKey, JSON.stringify(chatState));
       localStorage.setItem(historyKey, JSON.stringify(stateHistory));
@@ -328,6 +340,10 @@ export function PaternityChatInterface({
       }
       if (trimmed && !trimmed.includes(",")) {
         setValidationError("Please include city, state, and zip code separated by commas (e.g., 123 Main St, Phoenix, AZ 85001).");
+        return;
+      }
+      if (trimmed && !/\b\d{5}(-\d{4})?\b/.test(trimmed)) {
+        setValidationError("Please include a zip code in your address (e.g., 123 Main St, Phoenix, AZ 85001).");
         return;
       }
       answer = currentInput;
@@ -545,6 +561,25 @@ export function PaternityChatInterface({
           </Button>
         );
 
+      case "address":
+        return (
+          <div className="flex gap-3">
+            <AddressAutocomplete
+              value={currentInput}
+              onChange={setCurrentInput}
+              placeholder={currentQuestion.placeholder || "123 Main Street, Phoenix, AZ 85001"}
+              onKeyPress={handleKeyPress}
+            />
+            <Button
+              onClick={handleSubmit}
+              disabled={currentQuestion.required && !currentInput.trim()}
+              className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        );
+
       case "stop":
         return (
           <div className="space-y-3">
@@ -754,6 +789,13 @@ export function PaternityChatInterface({
                   captionLayout="dropdown"
                   fromYear={1940}
                   toYear={new Date().getFullYear()}
+                  defaultMonth={
+                    currentQuestion?.id === 'date_of_birth' || currentQuestion?.id === 'other_party_date_of_birth'
+                      ? new Date(1990, 0)
+                      : currentQuestion?.id === 'child_dob'
+                      ? new Date(new Date().getFullYear() - 5, 0)
+                      : undefined
+                  }
                 />
               </PopoverContent>
             </Popover>
@@ -870,6 +912,33 @@ export function PaternityChatInterface({
 
       default: {
         const isNameField = ["full_name", "mother_full_name", "father_full_name", "child_full_name"].includes(currentQuestion.id);
+        const isStreetField = currentQuestion.id === "children_address_street";
+
+        // Street address field gets autocomplete (street-only mode)
+        if (isStreetField) {
+          return (
+            <div className="flex gap-3">
+              <AddressAutocomplete
+                value={currentInput}
+                onChange={setCurrentInput}
+                onSelect={(details) => {
+                  setCurrentInput(details.street);
+                }}
+                placeholder={currentQuestion.placeholder || "123 Main Street"}
+                onKeyPress={handleKeyPress}
+                streetOnly
+              />
+              <Button
+                onClick={handleSubmit}
+                disabled={currentQuestion.required && !currentInput.trim()}
+                className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
+          );
+        }
+
         return (
           <div className="flex gap-3">
             <div className="relative flex-1">

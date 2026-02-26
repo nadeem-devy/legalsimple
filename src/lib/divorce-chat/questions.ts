@@ -14,7 +14,7 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
   {
     id: 'welcome',
     type: 'info',
-    question: "Welcome to the Legal QuickFile Wizard for Petition for Dissolution of Marriage. I'll guide you through the process step by step.",
+    question: "Welcome to the Legal Simple QuickFile Wizard for a Petition for Dissolution of Marriage. I'll guide you through the process step by step.",
     nextQuestionId: 'has_children',
   },
   {
@@ -43,6 +43,7 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
     id: 'personal_intro',
     type: 'info',
     question: "Great! Let's start with your personal information. You are the Petitioner in this case.",
+    tooltip: 'The Petitioner is the person who initiates the case. The Respondent is the other party who is responding to the Petition.',
     nextQuestionId: 'full_name',
   },
   {
@@ -157,7 +158,18 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
     question: "What is your spouse's date of birth?",
     tooltip: 'This information is required for the petition and helps identify your spouse in court records.',
     required: true,
-    nextQuestionId: 'spouse_mailing_address',
+    nextQuestionId: 'spouse_address_known',
+  },
+  {
+    id: 'spouse_address_known',
+    type: 'yesno',
+    question: "Do you know your spouse's mailing address?",
+    tooltip: 'Please note that after filing of your Petition, you will need to serve the Respondent with copies. In order to do that you will need their current address. If you do not have, or cannot locate a current address, you will need to request permission from the Court to serve them via alternative means.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'spouse_mailing_address',
+      'no': 'spouse_ssn4',
+    },
   },
   {
     id: 'spouse_mailing_address',
@@ -191,7 +203,8 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
     id: 'spouse_email',
     type: 'email',
     question: "What is your spouse's email address?",
-    placeholder: 'spouse@example.com',
+    description: 'If you don\'t know, you can skip this field or type "unknown".',
+    placeholder: 'spouse@example.com or type "unknown"',
     tooltip: 'An email address can help facilitate communication and document sharing during the divorce process.',
     required: false,
     nextQuestionId: 'spouse_gender',
@@ -1230,7 +1243,7 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
     id: 'other_orders',
     type: 'textarea',
     question: 'Are there any other orders that you are seeking from the court?',
-    description: 'This is optional. You can describe any additional requests here.',
+    description: 'This is optional. You can describe any additional requests here. Please use our AI assist feature to refine your answer for the Petition.',
     placeholder: 'e.g., Request for temporary restraining order, request to attend mediation, etc.',
     tooltip: 'This is your opportunity to request anything else not covered above. Common requests include restraining orders, orders regarding specific property, or requests for mediation.',
     required: false,

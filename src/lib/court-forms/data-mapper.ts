@@ -79,6 +79,7 @@ export interface NormalizedPDFData {
   // Domestic violence & drug conviction
   safetyIssues?: {
     hasDomesticViolence: boolean;
+    domesticViolenceCommittedBy?: string;
     domesticViolenceOption?: string;
     domesticViolenceExplanation?: string;
     hasDrugConviction: boolean;
@@ -90,6 +91,9 @@ export interface NormalizedPDFData {
     seeking: boolean;
     hasVoluntaryPayments?: boolean;
     voluntaryPaymentsDetails?: string;
+    voluntaryPaymentWho?: string;
+    voluntaryPaymentAmount?: string;
+    voluntaryPaymentStartDate?: string;
     pastSupportPeriod?: string;
   };
 
@@ -251,9 +255,8 @@ export interface NormalizedPDFData {
       orderDate: string;
       courtName: string;
       pageNumber: string;
-      sectionParagraph: string;
+      paragraphNumber: string;
       whyChange: string;
-      changeInCircumstance: string;
       modificationType: string;
     };
     // Parenting Time
@@ -261,11 +264,9 @@ export interface NormalizedPDFData {
       orderDate: string;
       courtName: string;
       pageNumber: string;
-      sectionParagraph: string;
+      paragraphNumber: string;
       whyChange: string;
-      changeInCircumstance: string;
       newSchedule: string;
-      customScheduleDetails: string;
       supervised: boolean;
       supervisedReason: string;
     };
@@ -274,9 +275,8 @@ export interface NormalizedPDFData {
       orderDate: string;
       courtName: string;
       pageNumber: string;
-      sectionParagraph: string;
+      paragraphNumber: string;
       whyChange: string;
-      changeInCircumstance: string;
     };
   };
 
@@ -633,6 +633,7 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
 
     safetyIssues: {
       hasDomesticViolence: data.hasDomesticViolence || false,
+      domesticViolenceCommittedBy: data.domesticViolenceCommittedBy,
       domesticViolenceOption: data.domesticViolenceOption,
       domesticViolenceExplanation: data.domesticViolenceExplanation,
       hasDrugConviction: data.hasDrugConviction || false,
@@ -643,6 +644,9 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
       seeking: data.seekingChildSupport || false,
       hasVoluntaryPayments: data.hasVoluntaryChildSupport,
       voluntaryPaymentsDetails: data.voluntaryChildSupportDetails,
+      voluntaryPaymentWho: data.voluntaryPaymentWho,
+      voluntaryPaymentAmount: data.voluntaryPaymentAmount,
+      voluntaryPaymentStartDate: data.voluntaryPaymentStartDate,
       pastSupportPeriod: data.pastSupportPeriod,
     },
 
@@ -822,9 +826,8 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         orderDate: data.ldm_orderDate || '',
         courtName: data.ldm_courtName || '',
         pageNumber: data.ldm_pageNumber || '',
-        sectionParagraph: data.ldm_sectionParagraph || '',
+        paragraphNumber: data.ldm_paragraphNumber || '',
         whyChange: data.ldm_whyChange || '',
-        changeInCircumstance: data.ldm_changeInCircumstance || '',
         modificationType: data.ldm_modificationType || '',
       } : undefined,
 
@@ -832,11 +835,9 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         orderDate: data.pt_orderDate || '',
         courtName: data.pt_courtName || '',
         pageNumber: data.pt_pageNumber || '',
-        sectionParagraph: data.pt_sectionParagraph || '',
+        paragraphNumber: data.pt_paragraphNumber || '',
         whyChange: data.pt_whyChange || '',
-        changeInCircumstance: data.pt_changeInCircumstance || '',
         newSchedule: data.pt_newSchedule || '',
-        customScheduleDetails: data.pt_customScheduleDetails || '',
         supervised: data.pt_supervised || false,
         supervisedReason: data.pt_supervisedReason || '',
       } : undefined,
@@ -845,9 +846,8 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         orderDate: data.cs_orderDate || '',
         courtName: data.cs_courtName || '',
         pageNumber: data.cs_pageNumber || '',
-        sectionParagraph: data.cs_sectionParagraph || '',
+        paragraphNumber: data.cs_paragraphNumber || '',
         whyChange: data.cs_whyChange || '',
-        changeInCircumstance: data.cs_changeInCircumstance || '',
       } : undefined,
     },
   };

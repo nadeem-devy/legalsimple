@@ -79,6 +79,7 @@ export interface DivorceChatData {
   spouseFullName: string;
   spouseGender: 'male' | 'female';
   spouseDateOfBirth: string;
+  spouseAddressKnown: boolean;
   spouseMailingAddress: string;
   spouseSsn4: string;
   spousePhone: string;
@@ -264,6 +265,7 @@ export const initialDivorceChatData: DivorceChatData = {
   spouseFullName: '',
   spouseGender: 'male',
   spouseDateOfBirth: '',
+  spouseAddressKnown: true,
   spouseMailingAddress: '',
   spouseSsn4: '',
   spousePhone: '',

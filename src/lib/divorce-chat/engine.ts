@@ -187,6 +187,12 @@ function updateDataFromAnswer(
     case 'spouse_date_of_birth':
       data.spouseDateOfBirth = answer;
       break;
+    case 'spouse_address_known':
+      data.spouseAddressKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spouseMailingAddress = 'Unknown';
+      }
+      break;
     case 'spouse_mailing_address':
       data.spouseMailingAddress = answer;
       break;

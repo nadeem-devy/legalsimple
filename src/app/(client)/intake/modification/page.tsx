@@ -12,7 +12,7 @@ function ModificationChatContent() {
   const caseId = searchParams.get("caseId") || undefined;
 
   return (
-    <div className="max-w-5xl mx-auto py-4">
+    <div className="max-w-5xl lg:max-w-7xl mx-auto py-4">
       {/* Header */}
       <div className="text-center mb-4">
         <div className="flex justify-center mb-3">

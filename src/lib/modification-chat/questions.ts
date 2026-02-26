@@ -7,9 +7,24 @@ const ARIZONA_COUNTIES = [
   'Santa Cruz', 'Yavapai', 'Yuma'
 ];
 
-const COURT_OPTIONS = ARIZONA_COUNTIES.map(county => ({
-  value: `${county} County Superior Court`,
-  label: `${county} County Superior Court`,
+const COURT_OPTIONS = [
+  ...ARIZONA_COUNTIES.map(county => ({
+    value: `${county} County Superior Court`,
+    label: `${county} County Superior Court`,
+  })),
+  { value: 'other', label: 'Other (out of state or different court)' },
+];
+
+// Page number options (1-30)
+const PAGE_NUMBER_OPTIONS = Array.from({ length: 30 }, (_, i) => ({
+  value: `Pg. ${i + 1}`,
+  label: `Page ${i + 1}`,
+}));
+
+// Paragraph number options (1-30)
+const PARAGRAPH_NUMBER_OPTIONS = Array.from({ length: 30 }, (_, i) => ({
+  value: `${i + 1}`,
+  label: `Paragraph ${i + 1}`,
 }));
 
 export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
@@ -20,7 +35,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'welcome',
     type: 'info',
     question:
-      "Welcome to the Legal QuickFile Wizard for Petition to Modify Existing Court Orders.\n\nBefore we begin, please be advised:\n\n• Modification can only occur based on a substantial and continuing change in circumstance since entry of the previous orders\n• Typically, modification can only occur once every 12 months\n• If there has not been a substantial and continuing change in circumstance since entry of the last orders, and/or if you have requested a modification less than 12 months ago, the Court may reject your petition",
+      "Welcome to the Legal Simple QuickFile Wizard for a Petition to Modify Existing Court Orders.\n\nBefore we begin, please be advised:\n\n• Modification can only occur based on a substantial and continuing change in circumstance since entry of the previous orders\n• Typically, modification can only occur once every 12 months\n• If there has not been a substantial and continuing change in circumstance since entry of the last orders, and/or if you have requested a modification less than 12 months ago, the Court may reject your petition",
     nextQuestionId: 'proceed_check',
   },
   {
@@ -29,9 +44,18 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     question: 'Would you like to proceed with the Petition to Modify?',
     required: true,
     nextQuestionMap: {
-      yes: 'case_number',
+      yes: 'upload_orders',
       no: 'proceed_stop',
     },
+  },
+  {
+    id: 'upload_orders',
+    type: 'file_upload',
+    question: 'Would you like to upload your existing court orders?',
+    description: 'Uploading your orders allows us to automatically extract case information, party names, children, and order details — saving you time and reducing errors.\n\nAccepted formats: PDF',
+    tooltip: 'If you have a PDF copy of your existing court orders, uploading it will allow us to pre-fill many of the questions in this questionnaire automatically. You can always edit the pre-filled information.',
+    required: false,
+    nextQuestionId: 'case_number',
   },
   {
     id: 'proceed_stop',
@@ -128,7 +152,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     type: 'info',
     question:
       "Great. Let's gather some basic information about you and the other party.",
-    nextQuestionId: 'full_name',
+    nextQuestionId: 'role_select',
   },
   {
     id: 'full_name',
@@ -154,14 +178,6 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     placeholder: 'e.g., Jane Marie Smith',
     required: true,
     validation: { minLength: 2 },
-    nextQuestionId: 'other_party_address',
-  },
-  {
-    id: 'other_party_address',
-    type: 'address',
-    question: "What is the other party's current mailing address?",
-    placeholder: '456 Oak Avenue, Phoenix, AZ 85002',
-    required: true,
     nextQuestionId: 'children_intro',
   },
 
@@ -197,7 +213,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       yes: 'child_name',
-      no: 'role_select',
+      no: 'modifications_selected',
     },
   },
 
@@ -217,7 +233,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       { value: 'respondent', label: 'I am the Respondent' },
     ],
     required: true,
-    nextQuestionId: 'modifications_selected',
+    nextQuestionId: 'full_name',
   },
 
   // =====================
@@ -276,23 +292,34 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       'What is the name of the Court that entered your Legal Decision Making order?',
     options: COURT_OPTIONS,
     required: true,
+    nextQuestionMap: {
+      other: 'ldm_court_name_other',
+    },
+    nextQuestionId: 'ldm_page_number',
+  },
+  {
+    id: 'ldm_court_name_other',
+    type: 'text',
+    question: 'Please enter the name of the Court that entered your Legal Decision Making order.',
+    placeholder: 'e.g., Clark County Family Court, Las Vegas, NV',
+    required: true,
     nextQuestionId: 'ldm_page_number',
   },
   {
     id: 'ldm_page_number',
-    type: 'text',
+    type: 'select',
     question:
       'What page number is the Legal Decision Making Order you wish to change?',
-    placeholder: 'e.g., Page 3',
+    options: PAGE_NUMBER_OPTIONS,
     required: true,
-    nextQuestionId: 'ldm_section_paragraph',
+    nextQuestionId: 'ldm_paragraph_number',
   },
   {
-    id: 'ldm_section_paragraph',
-    type: 'text',
+    id: 'ldm_paragraph_number',
+    type: 'select',
     question:
-      'What section/paragraph is the Legal Decision Making Order you wish to change?',
-    placeholder: 'e.g., Section 4, Paragraph B',
+      'What paragraph number is the Legal Decision Making Order you wish to change?',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'ldm_why_change',
   },
@@ -300,19 +327,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'ldm_why_change',
     type: 'textarea',
     question:
-      'Why do you believe this Legal Decision Making Order should be changed?',
-    placeholder: 'Describe why you believe this order should be modified...',
-    required: true,
-    nextQuestionId: 'ldm_change_circumstance',
-  },
-  {
-    id: 'ldm_change_circumstance',
-    type: 'textarea',
-    question:
-      'Please describe the substantial and continuing change in circumstance you believe has occurred since entry of the previous orders regarding Legal Decision Making.',
-    placeholder: 'Describe the change in circumstances...',
+      'Please describe why you believe this Legal Decision Making Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
     tooltip:
-      'Arizona courts require proof of a substantial and continuing change in circumstance to modify existing orders.',
+      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
     required: true,
     nextQuestionId: 'ldm_modification_type',
   },
@@ -323,16 +341,16 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     options: [
       {
         value: 'sole_to_me',
-        label: 'Sole legal decision making to me ({roleLabel})',
+        label: 'Sole legal decision making to me',
       },
       {
         value: 'joint',
-        label: 'Award joint legal decision making to both parents',
+        label: 'Joint legal decision making to both parents',
       },
       {
         value: 'joint_with_final_say',
         label:
-          'Award joint legal decision making with me ({roleLabel}) having final say',
+          'Joint legal decision making with me having final say',
       },
     ],
     required: true,
@@ -364,23 +382,34 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       'What is the name of the Court that entered your Parenting Time order?',
     options: COURT_OPTIONS,
     required: true,
+    nextQuestionMap: {
+      other: 'pt_court_name_other',
+    },
+    nextQuestionId: 'pt_page_number',
+  },
+  {
+    id: 'pt_court_name_other',
+    type: 'text',
+    question: 'Please enter the name of the Court that entered your Parenting Time order.',
+    placeholder: 'e.g., Clark County Family Court, Las Vegas, NV',
+    required: true,
     nextQuestionId: 'pt_page_number',
   },
   {
     id: 'pt_page_number',
-    type: 'text',
+    type: 'select',
     question:
       'What page number is the Parenting Time Order you wish to change?',
-    placeholder: 'e.g., Page 5',
+    options: PAGE_NUMBER_OPTIONS,
     required: true,
-    nextQuestionId: 'pt_section_paragraph',
+    nextQuestionId: 'pt_paragraph_number',
   },
   {
-    id: 'pt_section_paragraph',
-    type: 'text',
+    id: 'pt_paragraph_number',
+    type: 'select',
     question:
-      'What section/paragraph is the Parenting Time Order you wish to change?',
-    placeholder: 'e.g., Section 6, Paragraph A',
+      'What paragraph number is the Parenting Time Order you wish to change?',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'pt_why_change',
   },
@@ -388,19 +417,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_why_change',
     type: 'textarea',
     question:
-      'Why do you believe this Parenting Time Order should be changed?',
-    placeholder: 'Describe why you believe this order should be modified...',
-    required: true,
-    nextQuestionId: 'pt_change_circumstance',
-  },
-  {
-    id: 'pt_change_circumstance',
-    type: 'textarea',
-    question:
-      'Please describe the substantial and continuing change in circumstance you believe has occurred since entry of the previous orders regarding Parenting Time.',
-    placeholder: 'Describe the change in circumstances...',
+      'Please describe why you believe this Parenting Time Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
     tooltip:
-      'Arizona courts require proof of a substantial and continuing change in circumstance to modify existing orders.',
+      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
     required: true,
     nextQuestionId: 'pt_new_schedule',
   },
@@ -445,23 +465,12 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       'The 3-2-2-3, 5-2-2-5, and alternating weeks schedules all result in equal parenting time (50/50).',
     required: true,
     nextQuestionMap: {
-      custom: 'pt_custom_schedule_details',
+      custom: 'pt_supervised',
       '3-2-2-3': 'pt_supervised',
       '5-2-2-5': 'pt_supervised',
       alternating_weeks: 'pt_supervised',
       no_parenting_time: 'pt_supervised',
     },
-  },
-  {
-    id: 'pt_custom_schedule_details',
-    type: 'textarea',
-    question: 'Please describe your desired parenting time schedule:',
-    placeholder:
-      'e.g., Every other weekend Friday 6pm to Sunday 6pm, plus Wednesday evenings 4pm-8pm...',
-    tooltip:
-      'Be as specific as possible about days, times, and pickup/dropoff locations.',
-    required: true,
-    nextQuestionId: 'pt_supervised',
   },
   {
     id: 'pt_supervised',
@@ -480,7 +489,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_supervised_reason',
     type: 'textarea',
     question:
-      'Please explain why you believe supervised parenting time is in the best interests of the minor children.',
+      'Please explain why you believe supervised parenting time is in the best interests of the minor children. Please use our AI assist feature to refine your answer for the Petition.',
     placeholder: 'Describe why supervision is needed...',
     required: true,
     // Engine intercepts this sentinel to route to next selected issue or complete
@@ -511,23 +520,34 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       'What is the name of the Court that entered your Child Support order?',
     options: COURT_OPTIONS,
     required: true,
+    nextQuestionMap: {
+      other: 'cs_court_name_other',
+    },
+    nextQuestionId: 'cs_page_number',
+  },
+  {
+    id: 'cs_court_name_other',
+    type: 'text',
+    question: 'Please enter the name of the Court that entered your Child Support order.',
+    placeholder: 'e.g., Clark County Family Court, Las Vegas, NV',
+    required: true,
     nextQuestionId: 'cs_page_number',
   },
   {
     id: 'cs_page_number',
-    type: 'text',
+    type: 'select',
     question:
       'What page number is the Child Support Order you wish to change?',
-    placeholder: 'e.g., Page 7',
+    options: PAGE_NUMBER_OPTIONS,
     required: true,
-    nextQuestionId: 'cs_section_paragraph',
+    nextQuestionId: 'cs_paragraph_number',
   },
   {
-    id: 'cs_section_paragraph',
-    type: 'text',
+    id: 'cs_paragraph_number',
+    type: 'select',
     question:
-      'What section/paragraph is the Child Support Order you wish to change?',
-    placeholder: 'e.g., Section 8, Paragraph C',
+      'What paragraph number is the Child Support Order you wish to change?',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'cs_why_change',
   },
@@ -535,19 +555,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'cs_why_change',
     type: 'textarea',
     question:
-      'Why do you believe this Child Support Order should be changed?',
-    placeholder: 'Describe why you believe this order should be modified...',
-    required: true,
-    nextQuestionId: 'cs_change_circumstance',
-  },
-  {
-    id: 'cs_change_circumstance',
-    type: 'textarea',
-    question:
-      'Please describe the substantial and continuing change in circumstance you believe has occurred since entry of the previous orders regarding Child Support.',
-    placeholder: 'Describe the change in circumstances...',
+      'Please describe why you believe this Child Support Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
     tooltip:
-      'Arizona courts require proof of a substantial and continuing change in circumstance to modify existing orders.',
+      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
     required: true,
     // Engine intercepts this sentinel to route to next selected issue or complete
     nextQuestionId: '__next_issue__',

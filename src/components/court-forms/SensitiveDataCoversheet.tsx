@@ -242,7 +242,7 @@ export function SensitiveDataCoversheet({ data }: SensitiveDataCoversheetProps) 
           <TableRow
             label="Social Security Number"
             petValue={petitioner.ssn4 ? `XXX-XX-${petitioner.ssn4}` : ''}
-            resValue={respondent.ssn4 ? `XXX-XX-${respondent.ssn4}` : ''}
+            resValue={respondent.ssn4 && respondent.ssn4 !== '0000' ? `XXX-XX-${respondent.ssn4}` : respondent.ssn4 === '0000' ? 'Unknown' : ''}
           />
 
           {/* Warning about mailing address */}
@@ -253,10 +253,10 @@ export function SensitiveDataCoversheet({ data }: SensitiveDataCoversheetProps) 
           </View>
 
           {/* Mailing Address */}
-          <TableRow label="Mailing Address" petValue={petAddr.street} resValue={resAddr.street} />
+          <TableRow label="Mailing Address" petValue={petAddr.street} resValue={respondent.address?.toLowerCase() === 'unknown' ? 'Unknown' : resAddr.street} />
 
           {/* City, State, Zip */}
-          <TableRow label="City, State, Zip Code" petValue={petAddr.cityStateZip} resValue={resAddr.cityStateZip} />
+          <TableRow label="City, State, Zip Code" petValue={petAddr.cityStateZip} resValue={respondent.address?.toLowerCase() === 'unknown' ? '' : resAddr.cityStateZip} />
 
           {/* Contact Phone */}
           <TableRow label="Contact Phone" petValue={petitioner.phone || ''} resValue={respondent.phone || ''} />
@@ -269,7 +269,7 @@ export function SensitiveDataCoversheet({ data }: SensitiveDataCoversheetProps) 
           />
 
           {/* Email Address */}
-          <TableRow label="Email Address" petValue={petitioner.email || ''} resValue={respondent.email || ''} />
+          <TableRow label="Email Address" petValue={petitioner.email || ''} resValue={respondent.email?.toLowerCase() === 'unknown' ? 'Unknown' : (respondent.email || '')} />
 
           {/* Current Employer Name */}
           <TableRow label="Current Employer Name" petValue={''} resValue={''} />

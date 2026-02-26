@@ -323,6 +323,12 @@ function updateDataFromAnswer(
     case 'other_party_date_of_birth':
       data.otherPartyDateOfBirth = answer;
       break;
+    case 'other_party_address_known':
+      data.otherPartyAddressKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.otherPartyMailingAddress = 'Unknown';
+      }
+      break;
     case 'other_party_mailing_address':
       data.otherPartyMailingAddress = answer;
       break;
@@ -368,8 +374,23 @@ function updateDataFromAnswer(
     case 'children_reside_with':
       data.childrenResideWith = answer as 'petitioner' | 'respondent' | 'both';
       break;
-    case 'children_current_address':
-      data.childrenCurrentAddress = answer;
+    case 'children_address_street':
+      data.childrenAddressStreet = answer;
+      break;
+    case 'children_address_city':
+      data.childrenAddressCity = answer;
+      break;
+    case 'children_address_state':
+      data.childrenAddressState = answer;
+      break;
+    case 'children_address_zip':
+      data.childrenAddressZip = answer;
+      // Compose full address from structured fields
+      data.childrenCurrentAddress = [
+        data.childrenAddressStreet,
+        data.childrenAddressCity,
+        `${data.childrenAddressState || 'AZ'} ${answer}`,
+      ].filter(Boolean).join(', ');
       break;
 
     // Paternity Reason
@@ -412,9 +433,19 @@ function updateDataFromAnswer(
     case 'voluntary_support_check':
       data.hasVoluntaryChildSupport = answer.toLowerCase() === 'yes';
       break;
-    case 'voluntary_support_details':
-      data.voluntaryChildSupportDetails = answer;
+    case 'voluntary_support_who':
+      data.voluntaryPaymentWho = answer as 'petitioner' | 'respondent';
       break;
+    case 'voluntary_support_amount':
+      data.voluntaryPaymentAmount = answer;
+      break;
+    case 'voluntary_support_start_date': {
+      data.voluntaryPaymentStartDate = answer;
+      // Compose details string from structured data
+      const payerLabel = data.voluntaryPaymentWho === 'respondent' ? 'Respondent' : 'Petitioner';
+      data.voluntaryChildSupportDetails = `${payerLabel} has made a total of $${data.voluntaryPaymentAmount || '0'} in voluntary child support payments beginning on ${answer} which should be accounted for.`;
+      break;
+    }
 
     // Prior Custody Cases (Q10)
     case 'prior_custody_cases_check':
@@ -506,6 +537,9 @@ function updateDataFromAnswer(
     case 'domestic_violence_check':
       data.hasDomesticViolence = answer.toLowerCase() === 'yes';
       break;
+    case 'domestic_violence_who':
+      data.domesticViolenceCommittedBy = answer as 'petitioner' | 'respondent';
+      break;
     case 'domestic_violence_option':
       data.domesticViolenceOption = answer as 'no_joint_decision' | 'joint_despite_violence';
       break;
@@ -532,9 +566,6 @@ function updateDataFromAnswer(
     // Parenting Time
     case 'parenting_time_schedule':
       data.parentingTimeSchedule = answer as '3-2-2-3' | '5-2-2-5' | 'alternating_weeks' | 'custom' | 'no_parenting_time';
-      break;
-    case 'custom_schedule_details':
-      data.customScheduleDetails = answer;
       break;
     case 'supervised_check':
       data.isParentingTimeSupervised = answer === 'supervised';
@@ -634,10 +665,6 @@ function updateDataFromAnswer(
     case 'phone_contact':
       data.phoneContactOption = answer as 'normal_hours' | 'custom';
       break;
-    case 'phone_contact_custom':
-      data.phoneContactCustomSchedule = answer;
-      break;
-
     // Vacation
     case 'vacation_time_check':
       data.hasVacationTime = answer.toLowerCase() === 'yes';

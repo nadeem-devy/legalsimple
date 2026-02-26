@@ -36,6 +36,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { LogoIcon } from "@/components/ui/logo";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { ChatMessage, QuestionType } from "@/lib/divorce-with-children-chat/types";
 import {
   ChatState,
@@ -257,6 +258,12 @@ export function DivorceWithChildrenChatInterface({
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Validate currentQuestionId still exists (prevents stale state after question changes)
+        if (parsed.currentQuestionId && !getQuestionById(parsed.currentQuestionId) && parsed.currentQuestionId !== 'complete') {
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(historyKey);
+          return startChat();
+        }
         parsed.messages = parsed.messages.map((m: ChatMessage) => ({
           ...m,
           timestamp: new Date(m.timestamp),
@@ -284,9 +291,13 @@ export function DivorceWithChildrenChatInterface({
     return [];
   });
 
-  // Persist chat state to localStorage
+  // Persist chat state to localStorage (clear on completion/stop)
   useEffect(() => {
-    if (chatState.isComplete) return;
+    if (chatState.isComplete || chatState.isStopped) {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(historyKey);
+      return;
+    }
     try {
       localStorage.setItem(storageKey, JSON.stringify(chatState));
       localStorage.setItem(historyKey, JSON.stringify(stateHistory));
@@ -429,6 +440,10 @@ export function DivorceWithChildrenChatInterface({
       }
       if (trimmed && !trimmed.includes(",")) {
         setValidationError("Please include city, state, and zip code separated by commas (e.g., 123 Main St, Phoenix, AZ 85001).");
+        return;
+      }
+      if (trimmed && !/\b\d{5}(-\d{4})?\b/.test(trimmed)) {
+        setValidationError("Please include a zip code in your address (e.g., 123 Main St, Phoenix, AZ 85001).");
         return;
       }
       answer = currentInput;
@@ -644,6 +659,25 @@ export function DivorceWithChildrenChatInterface({
             Continue
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
+        );
+
+      case "address":
+        return (
+          <div className="flex gap-3">
+            <AddressAutocomplete
+              value={currentInput}
+              onChange={setCurrentInput}
+              placeholder={currentQuestion.placeholder || "123 Main Street, Phoenix, AZ 85001"}
+              onKeyPress={handleKeyPress}
+            />
+            <Button
+              onClick={handleSubmit}
+              disabled={currentQuestion.required && !currentInput.trim()}
+              className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
         );
 
       case "stop":
@@ -865,6 +899,13 @@ export function DivorceWithChildrenChatInterface({
                   captionLayout="dropdown"
                   fromYear={1940}
                   toYear={new Date().getFullYear()}
+                  defaultMonth={
+                    currentQuestion?.id === 'date_of_birth' || currentQuestion?.id === 'spouse_date_of_birth'
+                      ? new Date(1990, 0)
+                      : currentQuestion?.id === 'child_dob'
+                      ? new Date(new Date().getFullYear() - 5, 0)
+                      : undefined
+                  }
                 />
               </PopoverContent>
             </Popover>

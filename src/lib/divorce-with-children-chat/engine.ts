@@ -352,6 +352,12 @@ function updateDataFromAnswer(
     case 'spouse_date_of_birth':
       data.spouseDateOfBirth = answer;
       break;
+    case 'spouse_address_known':
+      data.spouseAddressKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spouseMailingAddress = 'Unknown';
+      }
+      break;
     case 'spouse_mailing_address':
       data.spouseMailingAddress = answer;
       break;
@@ -458,6 +464,9 @@ function updateDataFromAnswer(
     case 'domestic_violence_check':
       data.hasDomesticViolence = answer.toLowerCase() === 'yes';
       break;
+    case 'domestic_violence_who':
+      data.domesticViolenceCommittedBy = answer as 'petitioner' | 'respondent';
+      break;
     case 'domestic_violence_option':
       data.domesticViolenceOption = answer as 'no_joint_decision' | 'joint_despite_violence';
       break;
@@ -480,9 +489,18 @@ function updateDataFromAnswer(
     case 'voluntary_support_check':
       data.hasVoluntaryChildSupport = answer.toLowerCase() === 'yes';
       break;
-    case 'voluntary_support_details':
-      data.voluntaryChildSupportDetails = answer;
+    case 'voluntary_support_who':
+      data.voluntaryPaymentWho = answer as 'petitioner' | 'respondent';
       break;
+    case 'voluntary_support_amount':
+      data.voluntaryPaymentAmount = answer;
+      break;
+    case 'voluntary_support_start_date': {
+      data.voluntaryPaymentStartDate = answer;
+      const payerLabel = data.voluntaryPaymentWho === 'respondent' ? 'Respondent' : 'Petitioner';
+      data.voluntaryChildSupportDetails = `${payerLabel} has made a total of $${data.voluntaryPaymentAmount || '0'} in voluntary child support payments beginning on ${answer} which should be accounted for.`;
+      break;
+    }
     case 'past_support_period':
       data.pastSupportPeriod = answer as 'from_filing' | 'from_separation';
       break;
@@ -498,9 +516,6 @@ function updateDataFromAnswer(
     // Parenting Time
     case 'parenting_time_schedule':
       data.parentingTimeSchedule = answer as '3-2-2-3' | '5-2-2-5' | 'custom';
-      break;
-    case 'custom_schedule_details':
-      data.customScheduleDetails = answer;
       break;
     case 'supervised_check':
       data.isParentingTimeSupervised = answer === 'supervised';
@@ -597,10 +612,6 @@ function updateDataFromAnswer(
     case 'phone_contact':
       data.phoneContactOption = answer as 'normal_hours' | 'custom';
       break;
-    case 'phone_contact_custom':
-      data.phoneContactCustomSchedule = answer;
-      break;
-
     // Vacation
     case 'vacation_time_check':
       data.hasVacationTime = answer.toLowerCase() === 'yes';

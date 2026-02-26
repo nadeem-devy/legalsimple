@@ -61,24 +61,59 @@ function extractCounty(courtName: string): string {
   return match ? match[1] : '';
 }
 
+// Format page reference: "Pg. 3" → "page 3"
+function formatPageRef(value: string | undefined): string {
+  if (!value) return '___';
+  const cleaned = value.replace(/^(Pg\.?|Page)\s*/i, '').trim();
+  return `page ${cleaned}`;
+}
+
+// Format paragraph reference: "4" → "paragraph/section 4", but "paragraph 4" stays as-is
+function formatParagraphRef(value: string | undefined): string {
+  if (!value) return '___';
+  const lower = value.toLowerCase();
+  if (lower.includes('paragraph') || lower.includes('section') || lower.includes('par.') || lower.includes('sec.')) {
+    return value;
+  }
+  return `paragraph/section ${value}`;
+}
+
 // Format modification type for legal decision making
-function formatLdmModificationType(type: string, role: 'petitioner' | 'respondent'): string {
+// context 'request' = used in "the Court order ___" phrasing
+// context 'prayer' = used in "so that ___" phrasing
+function formatLdmModificationType(type: string, role: 'petitioner' | 'respondent', context: 'request' | 'prayer' = 'prayer'): string {
   const filingParty = role === 'petitioner' ? 'Petitioner' : 'Respondent';
-  switch (type) {
+  const normalized = type.toLowerCase();
+
+  if (context === 'request') {
+    switch (normalized) {
+      case 'sole_to_me':
+        return `sole legal decision-making to ${filingParty}`;
+      case 'joint':
+        return 'joint legal decision-making';
+      case 'joint_with_final_say':
+        return `joint legal decision-making, with ${filingParty} having final say authority`;
+      default:
+        return type.replace(/_/g, ' ');
+    }
+  }
+
+  // prayer context
+  switch (normalized) {
     case 'sole_to_me':
       return `sole legal decision-making authority be awarded to ${filingParty}`;
     case 'joint':
-      return 'joint legal decision-making authority be awarded to both parents';
+      return 'joint legal decision-making be awarded to both parents';
     case 'joint_with_final_say':
       return `joint legal decision-making be awarded to both parents, with ${filingParty} having final say authority`;
     default:
-      return type;
+      return type.replace(/_/g, ' ');
   }
 }
 
 // Format parenting time schedule
-function formatPtSchedule(schedule: string, customDetails: string): string {
-  switch (schedule) {
+function formatPtSchedule(schedule: string): string {
+  switch (schedule.toLowerCase()) {
     case '3-2-2-3':
       return 'equal parenting time following a 3-2-2-3 schedule';
     case '5-2-2-5':
@@ -88,9 +123,9 @@ function formatPtSchedule(schedule: string, customDetails: string): string {
     case 'no_parenting_time':
       return 'no parenting time be awarded to the other parent';
     case 'custom':
-      return customDetails || 'a modified parenting time schedule';
+      return 'a parenting time schedule that provides meaningful, substantial, and continuing parenting time to both parties, that is in the best interests of the children';
     default:
-      return schedule || 'a modified parenting time schedule';
+      return schedule?.replace(/_/g, ' ') || 'a modified parenting time schedule';
   }
 }
 
@@ -184,8 +219,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
 
           {/* Right Side - Case Number and Title */}
           <View style={styles.captionRight}>
-            <Text style={styles.captionCaseNumber}>Case No.:</Text>
-            <Text style={styles.captionCaseNumberValue}> {displayCaseNumber || '_______________'}</Text>
+            <Text style={styles.captionCaseNumber}>Case No.: {displayCaseNumber || '_______________'}</Text>
             <Text style={styles.captionTitle}>
               {`PETITION TO MODIFY ${modTitle}`}
             </Text>
@@ -204,7 +238,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
 
         {/* PARAGRAPH 2: Other party identity */}
         <NumberedParagraph num={++paraNum}>
-          {otherParty}&apos;s name is {modification.role === 'petitioner' ? respondent.name : petitioner.name || '[NAME]'}. {otherParty}&apos;s sensitive information is listed in the Sensitive Data Cover Sheet filed herewith under seal.
+          {otherParty}&apos;s name is {modification.role === 'petitioner' ? respondent.name : petitioner.name || '[NAME]'}.
         </NumberedParagraph>
 
         {/* PARAGRAPH 3: Original case */}
@@ -225,19 +259,19 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             </View>
 
             <NumberedParagraph num={++paraNum}>
-              On {courtDate(modification.ldm.orderDate)}, {modification.ldm.courtName || 'the Court'} entered orders regarding Legal Decision Making, found at {modification.ldm.pageNumber || '___'}, {modification.ldm.sectionParagraph || '___'} of the existing orders.
+              On {courtDate(modification.ldm.orderDate)}, {modification.ldm.courtName || 'the Court'} entered orders regarding Legal Decision Making, found at {formatPageRef(modification.ldm.pageNumber)}, {formatParagraphRef(modification.ldm.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders regarding Legal Decision Making, specifically: {modification.ldm.changeInCircumstance || '___'}
+              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} believes this order should be changed because: {modification.ldm.whyChange || '___'}
+              Specifically, {filingParty} alleges that this Legal Decision Making Order should be modified because: {modification.ldm.whyChange || '___'}
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} requests that {formatLdmModificationType(modification.ldm.modificationType, modification.role)} pursuant to A.R.S. &sect;25-403 and A.R.S. &sect;25-411.
+              {filingParty} requests that the Court order {formatLdmModificationType(modification.ldm.modificationType, modification.role, 'request')} pursuant to A.R.S. &sect;25-403 and A.R.S. &sect;25-411.
             </NumberedParagraph>
           </>
         )}
@@ -250,19 +284,19 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             </View>
 
             <NumberedParagraph num={++paraNum}>
-              On {courtDate(modification.pt.orderDate)}, {modification.pt.courtName || 'the Court'} entered orders regarding Parenting Time, found at {modification.pt.pageNumber || '___'}, {modification.pt.sectionParagraph || '___'} of the existing orders.
+              On {courtDate(modification.pt.orderDate)}, {modification.pt.courtName || 'the Court'} entered orders regarding Parenting Time, found at {formatPageRef(modification.pt.pageNumber)}, {formatParagraphRef(modification.pt.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders regarding Parenting Time, specifically: {modification.pt.changeInCircumstance || '___'}
+              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} believes this order should be changed because: {modification.pt.whyChange || '___'}
+              Specifically, {filingParty} alleges that this Parenting Time Order should be modified because: {modification.pt.whyChange || '___'}
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} requests that the Court order {formatPtSchedule(modification.pt.newSchedule, modification.pt.customScheduleDetails)} pursuant to A.R.S. &sect;25-408 and A.R.S. &sect;25-411.
+              {filingParty} requests that the Court order {formatPtSchedule(modification.pt.newSchedule)} pursuant to A.R.S. &sect;25-408 and A.R.S. &sect;25-411.
             </NumberedParagraph>
 
             {modification.pt.supervised && (
@@ -281,15 +315,15 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             </View>
 
             <NumberedParagraph num={++paraNum}>
-              On {courtDate(modification.cs.orderDate)}, {modification.cs.courtName || 'the Court'} entered orders regarding Child Support, found at {modification.cs.pageNumber || '___'}, {modification.cs.sectionParagraph || '___'} of the existing orders.
+              On {courtDate(modification.cs.orderDate)}, {modification.cs.courtName || 'the Court'} entered orders regarding Child Support, found at {formatPageRef(modification.cs.pageNumber)}, {formatParagraphRef(modification.cs.paragraphNumber)} of the existing orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders regarding Child Support, specifically: {modification.cs.changeInCircumstance || '___'}
+              {filingParty} alleges that a substantial and continuing change in circumstance has occurred since entry of the previous orders.
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
-              {filingParty} believes this order should be changed because: {modification.cs.whyChange || '___'}
+              Specifically, {filingParty} alleges that this Child Support Order should be modified because: {modification.cs.whyChange || '___'}
             </NumberedParagraph>
 
             <NumberedParagraph num={++paraNum}>
@@ -311,13 +345,13 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             <>
               {modification.ldm && (
                 <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
-                  Modify the existing Legal Decision Making orders so that {formatLdmModificationType(modification.ldm.modificationType, modification.role)};
+                  Modify the existing Legal Decision Making orders so that {formatLdmModificationType(modification.ldm.modificationType, modification.role, 'prayer')};
                 </PrayerItem>
               )}
 
               {modification.pt && (
                 <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
-                  Modify the existing Parenting Time orders to award {formatPtSchedule(modification.pt.newSchedule, modification.pt.customScheduleDetails)};
+                  Modify the existing Parenting Time orders to award {formatPtSchedule(modification.pt.newSchedule)};
                 </PrayerItem>
               )}
 

@@ -67,10 +67,7 @@ function PrayerItem({ letter, children }: { letter: string; children: React.Reac
 
 export function PaternityPetitionDocument({ data, signature }: PaternityPetitionDocumentProps) {
   const { petitioner, respondent, children, custody, safetyIssues, childSupport, parentingTime, vacationTravel, paternity } = data;
-  const isMale = petitioner.gender === 'male';
-  const petitionerAlias = isMale ? 'Father' : 'Mother';
-  const respondentAlias = isMale ? 'Mother' : 'Father';
-  const pronoun = isMale ? 'his' : 'her';
+  const pronoun = petitioner.gender === 'male' ? 'his' : 'her';
 
   // Auto-incrementing paragraph counter
   let paraNum = 0;
@@ -160,7 +157,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
 
         {/* Introduction - citing A.R.S. §25-803(2) */}
         <Text style={styles.paragraph}>
-          {petitioner.name?.toUpperCase() || '[PETITIONER NAME]'} (&ldquo;{petitionerAlias}&rdquo; or &ldquo;Petitioner&rdquo;) for {pronoun} Petition to Establish Paternity, Legal Decision Making, Parenting Time and Child Support (&ldquo;Petition&rdquo;) against {respondent.name?.toUpperCase() || '[RESPONDENT NAME]'} (&ldquo;{respondentAlias}&rdquo; or &ldquo;Respondent&rdquo;) pursuant to A.R.S. &sect;25-803(2) alleges as follows:
+          {petitioner.name?.toUpperCase() || '[PETITIONER NAME]'} (&ldquo;Petitioner&rdquo;) for {pronoun} Petition to Establish Paternity, Legal Decision Making, Parenting Time and Child Support (&ldquo;Petition&rdquo;) against {respondent.name?.toUpperCase() || '[RESPONDENT NAME]'} (&ldquo;Respondent&rdquo;) pursuant to A.R.S. &sect;25-803(2) alleges as follows:
         </Text>
 
         {/* PARAGRAPH 1: Petitioner Identity */}
@@ -222,7 +219,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
 
         {/* PARAGRAPH: Domestic Violence */}
         <NumberedParagraph num={++paraNum}>
-          Petitioner alleges that {safetyIssues?.hasDomesticViolence ? 'there has been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member' : 'there has not been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member'}.{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ' Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to the party who committed domestic violence.' : ''}{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ` Petitioner avers that it would still be in the best interests of the ${childCount === 1 ? 'child' : 'children'} for the parties to share joint legal decision-making.` : ''}
+          Petitioner alleges that {safetyIssues?.hasDomesticViolence ? 'there has been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member' : 'there has not been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member'}.{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ` Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to ${safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'Respondent'}, who committed domestic violence.` : ''}{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ` Petitioner avers that it would still be in the best interests of the ${childCount === 1 ? 'child' : 'children'} for the parties to share joint legal decision-making.` : ''}
         </NumberedParagraph>
 
         {/* PARAGRAPH: Drug/DUI Conviction */}
@@ -304,20 +301,23 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {parentingTime && (
           <>
             <NumberedParagraph num={++paraNum}>
-              {parentingTime.schedule === 'no_parenting_time'
-                ? `Petitioner requests that Respondent have no parenting time with the minor ${childCount === 1 ? 'child' : 'children'}.`
-                : parentingTime.isSupervised
-                ? `Petitioner requests that Respondent have supervised parenting time with the minor ${childCount === 1 ? 'child' : 'children'}.${parentingTime.customDetails ? ` ${parentingTime.customDetails}` : ''}`
-                : parentingTime.schedule === 'custom'
-                ? `As for parenting time, ${parentingTime.customDetails || `the parties shall establish a parenting time schedule in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`}`
-                : parentingTime.schedule === '3-2-2-3'
-                ? `Petitioner requests equal parenting time following a 3-2-2-3 schedule.`
-                : parentingTime.schedule === '5-2-2-5'
-                ? `Petitioner requests equal parenting time following a 5-2-2-5 schedule.`
-                : parentingTime.schedule === 'alternating_weeks'
-                ? `Petitioner requests equal parenting time following an alternating weeks schedule.`
-                : `Petitioner requests that parenting time follow a ${parentingTime.schedule} schedule in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`}
+              {(() => {
+                const sched = (parentingTime.schedule || '').toLowerCase();
+                if (sched === 'no_parenting_time') return `Petitioner requests that Respondent have no parenting time with the minor ${childCount === 1 ? 'child' : 'children'}.`;
+                if (sched === 'custom') return `Petitioner requests a regular parenting time schedule that provides meaningful, substantial, and continuing parenting time to both parties, that is in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`;
+                if (sched === '3-2-2-3') return `Petitioner requests equal parenting time following a 3-2-2-3 schedule.`;
+                if (sched === '5-2-2-5') return `Petitioner requests equal parenting time following a 5-2-2-5 schedule.`;
+                if (sched === 'alternating_weeks') return `Petitioner requests equal parenting time following an alternating weeks schedule.`;
+                return `Petitioner requests a regular parenting time schedule that provides meaningful, substantial, and continuing parenting time to both parties, that is in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`;
+              })()}
             </NumberedParagraph>
+
+            {/* Supervised parenting time - separate paragraph */}
+            {parentingTime.isSupervised && (
+              <NumberedParagraph num={++paraNum}>
+                {`Petitioner requests that Respondent have supervised parenting time with the minor ${childCount === 1 ? 'child' : 'children'}.`}
+              </NumberedParagraph>
+            )}
 
             {/* Exchange method */}
             {parentingTime.exchangeMethod && ['pickup', 'dropoff', 'midway'].includes(parentingTime.exchangeMethod) && (
@@ -333,11 +333,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
             {/* Phone/video contact */}
             {parentingTime.phoneContact && (
               <NumberedParagraph num={++paraNum}>
-                {parentingTime.phoneContact === 'normal_hours'
-                  ? `Each parent shall have reasonable phone and video contact with the ${childCount === 1 ? 'child' : 'children'} during normal waking hours when the ${childCount === 1 ? 'child is' : 'children are'} with the other parent.`
-                  : parentingTime.phoneContact === 'custom' && parentingTime.phoneContactCustom
-                  ? `Phone and video contact schedule: ${parentingTime.phoneContactCustom}`
-                  : `Each parent shall have reasonable phone and video contact with the ${childCount === 1 ? 'child' : 'children'} when ${childCount === 1 ? 'the child is' : 'they are'} with the other parent.`}
+                {`Each parent shall have reasonable phone and video contact with the ${childCount === 1 ? 'child' : 'children'} when the ${childCount === 1 ? 'child is' : 'children are'} with the other parent.`}
               </NumberedParagraph>
             )}
           </>
@@ -439,7 +435,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {/* Vacation time */}
         {vacationTravel?.hasVacationTime && (
           <NumberedParagraph num={++paraNum}>
-            Each parent shall be entitled to {vacationTravel.vacationDuration || 'reasonable'} vacation time with the {childCount === 1 ? 'child' : 'children'} per year{vacationTravel.vacationNotice ? `, with ${vacationTravel.vacationNotice} advance notice to the other parent` : ''}.{vacationTravel.vacationPriority ? ` In the event of conflicting vacation dates, Petitioner shall have priority for vacation selection in ${vacationTravel.vacationPriority} years.` : ''}
+            Each parent shall be entitled to {vacationTravel.vacationDuration || 'reasonable'} of uninterrupted vacation time with the {childCount === 1 ? 'child' : 'children'} per year{vacationTravel.vacationNotice ? `, with ${vacationTravel.vacationNotice} advance notice to the other parent` : ''}.{vacationTravel.vacationPriority ? ` In the event of conflicting vacation dates, Petitioner shall have priority for vacation selection in ${vacationTravel.vacationPriority} years.` : ''}
           </NumberedParagraph>
         )}
 
@@ -490,9 +486,9 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               ? 'Petitioner acknowledges that past child support may be owed.'
               : 'Petitioner alleges that Respondent owes past child support.'}
             {paternity.pastSupportPeriod === 'from_filing'
-              ? ' Petitioner requests that child support be calculated from the date of filing of this Petition.'
+              ? ' Petitioner requests past child support from the date of filing of this Petition until the date of the child support order.'
               : paternity.pastSupportPeriod === 'from_living_apart'
-              ? ' Petitioner requests that child support be calculated from the date the parties began living apart, up to three (3) years prior to the filing of this Petition pursuant to A.R.S. §25-320.'
+              ? ' Petitioner requests past child support from the date the parties began living apart, up to three (3) years prior to the filing of this Petition, until the date of the child support order, pursuant to A.R.S. §25-320.'
               : ''}
           </NumberedParagraph>
         )}
@@ -500,7 +496,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {/* Child support */}
         <NumberedParagraph num={++paraNum}>
           {childSupport?.seeking
-            ? `The Court should award child support in accordance with the Arizona Child Support Guidelines.${childSupport.hasVoluntaryPayments ? ` Voluntary child support payments have been made${childSupport.voluntaryPaymentsDetails ? `: ${childSupport.voluntaryPaymentsDetails}` : ''}.` : ''}`
+            ? `The Court should award child support in accordance with the Arizona Child Support Guidelines.${childSupport.hasVoluntaryPayments ? ` ${childSupport.voluntaryPaymentsDetails || 'Voluntary child support payments have been made which should be accounted for.'}` : ''}`
             : 'The Court should award child support, however at this time Petitioner is willing to waive any child support.'}
         </NumberedParagraph>
 
@@ -514,7 +510,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {/* OTHER ORDERS */}
         {data.otherOrders && (
           <NumberedParagraph num={++paraNum}>
-            Petitioner further requests: {data.otherOrders}
+            Petitioner further requests: {data.otherOrders.replace(/^(The )?Petitioner requests?\s*/i, '')}
           </NumberedParagraph>
         )}
 
@@ -550,6 +546,22 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               {childSupport?.seeking && (
                 <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
                   Order child support in accordance with the Arizona Child Support Guidelines;
+                </PrayerItem>
+              )}
+
+              {paternity?.owesPastChildSupport && (
+                <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
+                  {paternity.pastSupportPeriod === 'from_filing'
+                    ? 'Order past child support from the date of filing of this Petition until the date of the child support order;'
+                    : paternity.pastSupportPeriod === 'from_living_apart'
+                    ? 'Order past child support from the date the parties began living apart, up to three (3) years prior to the filing of this Petition, until the date of the child support order;'
+                    : 'Order past child support as determined by the Court;'}
+                </PrayerItem>
+              )}
+
+              {childSupport?.hasVoluntaryPayments && (
+                <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
+                  Account for voluntary child support payments made by {childSupport.voluntaryPaymentWho === 'respondent' ? 'Respondent' : 'Petitioner'};
                 </PrayerItem>
               )}
 

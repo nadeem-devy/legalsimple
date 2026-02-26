@@ -143,6 +143,7 @@ export interface PaternityChatData {
   otherPartyFullName: string;
   otherPartyGender: 'male' | 'female';
   otherPartyDateOfBirth: string;
+  otherPartyAddressKnown: boolean;
   otherPartyMailingAddress: string;
   otherPartySsn4: string;
   otherPartyPhone: string;
@@ -157,6 +158,10 @@ export interface PaternityChatData {
   childrenResideWith: 'petitioner' | 'respondent' | 'both';
   // Per-child current residence
   childrenCurrentAddress: string;
+  childrenAddressStreet?: string;
+  childrenAddressCity?: string;
+  childrenAddressState?: string;
+  childrenAddressZip?: string;
 
   // === PATERNITY REASON ===
   paternityReason: string;
@@ -177,6 +182,9 @@ export interface PaternityChatData {
   seekingChildSupport: boolean;
   hasVoluntaryChildSupport?: boolean;
   voluntaryChildSupportDetails?: string;
+  voluntaryPaymentWho?: 'petitioner' | 'respondent';
+  voluntaryPaymentAmount?: string;
+  voluntaryPaymentStartDate?: string;
 
   // === OTHER COURT CASES ===
   // Q10: Prior custody/parenting time cases
@@ -193,6 +201,7 @@ export interface PaternityChatData {
 
   // === DOMESTIC VIOLENCE ===
   hasDomesticViolence: boolean;
+  domesticViolenceCommittedBy?: 'petitioner' | 'respondent';
   domesticViolenceOption?: 'no_joint_decision' | 'joint_despite_violence';
   domesticViolenceExplanation?: string;
 
@@ -272,6 +281,7 @@ export const initialPaternityChatData: PaternityChatData = {
   otherPartyFullName: '',
   otherPartyGender: 'male',
   otherPartyDateOfBirth: '',
+  otherPartyAddressKnown: true,
   otherPartyMailingAddress: '',
   otherPartySsn4: '',
   otherPartyPhone: '',

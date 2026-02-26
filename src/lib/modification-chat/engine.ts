@@ -4,6 +4,7 @@ import {
   ModificationChatData,
   initialModificationChatData,
   ChildInfo,
+  ExtractedOrderData,
 } from './types';
 import {
   MODIFICATION_QUESTIONS,
@@ -98,6 +99,16 @@ function resolveSentinel(
   return nextId;
 }
 
+// Questions that should be auto-submitted when pre-fill data is available
+const AUTO_SUBMIT_PREFILL_IDS = new Set([
+  'case_number',
+  'full_name',
+  'other_party_name',
+  'ldm_order_date', 'ldm_court_name', 'ldm_page_number', 'ldm_paragraph_number',
+  'pt_order_date', 'pt_court_name', 'pt_page_number', 'pt_paragraph_number',
+  'cs_order_date', 'cs_court_name', 'cs_page_number', 'cs_paragraph_number',
+]);
+
 /**
  * Create a new chat message
  */
@@ -106,7 +117,8 @@ export function createMessage(
   content: string,
   questionId?: string,
   options?: ChatQuestion['options'],
-  inputType?: ChatQuestion['type']
+  inputType?: ChatQuestion['type'],
+  autoFilled?: boolean
 ): ChatMessage {
   return {
     id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -116,66 +128,186 @@ export function createMessage(
     questionId,
     options,
     inputType,
+    autoFilled,
   };
 }
 
 /**
- * Process the current question and return a message
+ * Process the current question and return a message.
+ * When uploaded order data is available, auto-advances through questions
+ * that have pre-fill values (showing Q&A pairs in the chat automatically).
  */
 export function processCurrentQuestion(state: ChatState): ChatState {
   if (!state.currentQuestionId) return state;
 
-  const question = getQuestionById(state.currentQuestionId);
-  if (!question) return state;
+  let currentState = state;
+  let iterations = 0;
+  const MAX_ITERATIONS = 25;
 
-  // Replace placeholders in question text
-  let questionText = question.question;
-  const roleLabel =
-    state.data.role === 'petitioner' ? 'Petitioner' : 'Respondent';
-  questionText = questionText.replace(/\{roleLabel\}/g, roleLabel);
-
-  // Also replace placeholders in options
-  let processedOptions = question.options;
-  if (processedOptions) {
-    processedOptions = processedOptions.map((opt) => ({
-      ...opt,
-      label: opt.label.replace(/\{roleLabel\}/g, roleLabel),
-      description: opt.description?.replace(/\{roleLabel\}/g, roleLabel),
-    }));
-  }
-
-  // Dynamic intro text: adjust "first" to "next" if not the first issue
-  if (
-    state.currentQuestionId === 'ldm_intro' &&
-    state.data.modificationsSelected.length > 0
+  while (
+    currentState.currentQuestionId &&
+    currentState.currentQuestionId !== 'complete' &&
+    !currentState.isComplete &&
+    !currentState.isStopped &&
+    iterations < MAX_ITERATIONS
   ) {
-    const firstSelected = getNextSelectedIssue(
-      null,
-      state.data.modificationsSelected
-    );
-    if (firstSelected !== 'legal_decision_making') {
-      questionText = questionText.replace('first', 'next');
+    iterations++;
+    const questionId = currentState.currentQuestionId;
+    const question = getQuestionById(questionId);
+    if (!question) break;
+
+    // --- Children pre-fill: show extracted children and skip to more_children ---
+    if (
+      questionId === 'children_intro' &&
+      currentState.data.hasUploadedOrders &&
+      currentState.data.children.length > 0
+    ) {
+      const childrenList = currentState.data.children
+        .map((c) => `• ${c.name}${c.dateOfBirth ? ` (DOB: ${c.dateOfBirth})` : ''}`)
+        .join('\n');
+      const text = `We found ${currentState.data.children.length} child${
+        currentState.data.children.length > 1 ? 'ren' : ''
+      } in your uploaded orders:\n\n${childrenList}\n\nWe'll ask if you need to add more children next.`;
+      currentState = {
+        ...currentState,
+        messages: [
+          ...currentState.messages,
+          createMessage('assistant', text, 'children_intro', undefined, 'info'),
+        ],
+        currentQuestionId: 'more_children',
+      };
+      continue;
     }
+
+    // --- Build question text ---
+    let questionText = question.question;
+    const roleLabel =
+      currentState.data.role === 'petitioner' ? 'Petitioner' : 'Respondent';
+    questionText = questionText.replace(/\{roleLabel\}/g, roleLabel);
+
+    let processedOptions = question.options;
+    if (processedOptions) {
+      processedOptions = processedOptions.map((opt) => ({
+        ...opt,
+        label: opt.label.replace(/\{roleLabel\}/g, roleLabel),
+        description: opt.description?.replace(/\{roleLabel\}/g, roleLabel),
+      }));
+    }
+
+    // Dynamic intro text: adjust "first" to "next" if not the first issue
+    if (
+      questionId === 'ldm_intro' &&
+      currentState.data.modificationsSelected.length > 0
+    ) {
+      const firstSelected = getNextSelectedIssue(
+        null,
+        currentState.data.modificationsSelected
+      );
+      if (firstSelected !== 'legal_decision_making') {
+        questionText = questionText.replace('first', 'next');
+      }
+    }
+
+    const fullText = question.description
+      ? `${questionText}\n\n${question.description}`
+      : questionText;
+
+    // Create assistant message with question
+    const assistantMessage = createMessage(
+      'assistant',
+      fullText,
+      question.id,
+      processedOptions,
+      question.type
+    );
+
+    currentState = {
+      ...currentState,
+      messages: [...currentState.messages, assistantMessage],
+    };
+
+    // --- Check for auto-submit with pre-fill data ---
+    if (
+      currentState.data.hasUploadedOrders &&
+      AUTO_SUBMIT_PREFILL_IDS.has(questionId)
+    ) {
+      let prefillValue = getPrefillValue(questionId, currentState.data);
+      if (prefillValue) {
+        // For select questions, validate the value matches an option (case-insensitive)
+        if (question.type === 'select' && question.options) {
+          const normalizedPrefill = prefillValue.toLowerCase().trim();
+          const matchingOption = question.options.find(
+            (o) =>
+              o.value.toLowerCase().trim() === normalizedPrefill ||
+              o.label.toLowerCase().trim() === normalizedPrefill
+          );
+          if (matchingOption) {
+            prefillValue = matchingOption.value;
+          } else {
+            // No match found, let user select manually
+            break;
+          }
+        }
+
+        // Create auto-filled user message
+        const userMessage = createMessage(
+          'user',
+          prefillValue,
+          questionId,
+          undefined,
+          undefined,
+          true
+        );
+
+        currentState = {
+          ...currentState,
+          messages: [...currentState.messages, userMessage],
+        };
+
+        // Update data
+        const { data: newData, tempItemData: newTempData } =
+          updateDataFromAnswer(
+            currentState.data,
+            question.id,
+            prefillValue,
+            currentState.tempItemData
+          );
+
+        // Get next question
+        let nextQuestionId = getNextQuestion(question, prefillValue);
+        if (nextQuestionId) {
+          nextQuestionId = resolveSentinel(
+            nextQuestionId,
+            questionId,
+            newData
+          );
+        }
+
+        if (!nextQuestionId || nextQuestionId === 'complete') {
+          return {
+            ...currentState,
+            data: newData,
+            currentQuestionId: 'complete',
+            isComplete: true,
+            tempItemData: {},
+          };
+        }
+
+        currentState = {
+          ...currentState,
+          data: newData,
+          currentQuestionId: nextQuestionId,
+          tempItemData: newTempData,
+        };
+        continue; // Loop to process next question
+      }
+    }
+
+    // No auto-submit available, return for manual input
+    break;
   }
 
-  // Add description if present
-  const fullText = question.description
-    ? `${questionText}\n\n${question.description}`
-    : questionText;
-
-  // Create assistant message with question
-  const assistantMessage = createMessage(
-    'assistant',
-    fullText,
-    question.id,
-    processedOptions,
-    question.type
-  );
-
-  return {
-    ...state,
-    messages: [...state.messages, assistantMessage],
-  };
+  return currentState;
 }
 
 /**
@@ -285,6 +417,54 @@ function updateDataFromAnswer(
   let newTempData = { ...tempData };
 
   switch (questionId) {
+    // Upload Orders
+    case 'upload_orders': {
+      if (answer && answer !== 'skip') {
+        try {
+          const extracted = JSON.parse(answer) as ExtractedOrderData;
+          data.hasUploadedOrders = true;
+          data.extractedOrderData = extracted;
+          // Pre-fill case number
+          if (extracted.caseNumber) data.caseNumber = extracted.caseNumber;
+          // Pre-fill court name across all blocks
+          if (extracted.courtName) {
+            data.ldm_courtName = extracted.courtName;
+            data.pt_courtName = extracted.courtName;
+            data.cs_courtName = extracted.courtName;
+          }
+          // Pre-fill children
+          if (extracted.children && extracted.children.length > 0) {
+            data.children = extracted.children.map((c) => ({
+              id: `child-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              name: c.name,
+              dateOfBirth: c.dateOfBirth || '',
+            }));
+          }
+          // Pre-fill section-specific fields from extracted sections
+          if (extracted.sections) {
+            for (const section of extracted.sections) {
+              if (section.type === 'legal_decision_making') {
+                if (section.orderDate) data.ldm_orderDate = section.orderDate;
+                if (section.pageNumber) data.ldm_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.ldm_paragraphNumber = section.paragraphNumber;
+              } else if (section.type === 'parenting_time') {
+                if (section.orderDate) data.pt_orderDate = section.orderDate;
+                if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
+              } else if (section.type === 'child_support') {
+                if (section.orderDate) data.cs_orderDate = section.orderDate;
+                if (section.pageNumber) data.cs_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.cs_paragraphNumber = section.paragraphNumber;
+              }
+            }
+          }
+        } catch {
+          // If JSON parse fails, skip extraction — user proceeds manually
+        }
+      }
+      break;
+    }
+
     // Case Information
     case 'case_number':
       data.caseNumber = answer;
@@ -349,19 +529,22 @@ function updateDataFromAnswer(
       data.ldm_orderDate = answer;
       break;
     case 'ldm_court_name':
+      // If "other" is selected, the next question will capture the actual court name
+      if (answer !== 'other') {
+        data.ldm_courtName = answer;
+      }
+      break;
+    case 'ldm_court_name_other':
       data.ldm_courtName = answer;
       break;
     case 'ldm_page_number':
-      data.ldm_pageNumber = /^\d+$/.test(answer.trim()) ? `Pg. ${answer.trim()}` : answer;
+      data.ldm_pageNumber = answer;
       break;
-    case 'ldm_section_paragraph':
-      data.ldm_sectionParagraph = answer;
+    case 'ldm_paragraph_number':
+      data.ldm_paragraphNumber = answer;
       break;
     case 'ldm_why_change':
       data.ldm_whyChange = answer;
-      break;
-    case 'ldm_change_circumstance':
-      data.ldm_changeInCircumstance = answer;
       break;
     case 'ldm_modification_type':
       data.ldm_modificationType = answer;
@@ -372,25 +555,24 @@ function updateDataFromAnswer(
       data.pt_orderDate = answer;
       break;
     case 'pt_court_name':
+      if (answer !== 'other') {
+        data.pt_courtName = answer;
+      }
+      break;
+    case 'pt_court_name_other':
       data.pt_courtName = answer;
       break;
     case 'pt_page_number':
-      data.pt_pageNumber = /^\d+$/.test(answer.trim()) ? `Pg. ${answer.trim()}` : answer;
+      data.pt_pageNumber = answer;
       break;
-    case 'pt_section_paragraph':
-      data.pt_sectionParagraph = answer;
+    case 'pt_paragraph_number':
+      data.pt_paragraphNumber = answer;
       break;
     case 'pt_why_change':
       data.pt_whyChange = answer;
       break;
-    case 'pt_change_circumstance':
-      data.pt_changeInCircumstance = answer;
-      break;
     case 'pt_new_schedule':
       data.pt_newSchedule = answer;
-      break;
-    case 'pt_custom_schedule_details':
-      data.pt_customScheduleDetails = answer;
       break;
     case 'pt_supervised':
       data.pt_supervised = answer.toLowerCase() === 'yes';
@@ -404,19 +586,21 @@ function updateDataFromAnswer(
       data.cs_orderDate = answer;
       break;
     case 'cs_court_name':
+      if (answer !== 'other') {
+        data.cs_courtName = answer;
+      }
+      break;
+    case 'cs_court_name_other':
       data.cs_courtName = answer;
       break;
     case 'cs_page_number':
-      data.cs_pageNumber = /^\d+$/.test(answer.trim()) ? `Pg. ${answer.trim()}` : answer;
+      data.cs_pageNumber = answer;
       break;
-    case 'cs_section_paragraph':
-      data.cs_sectionParagraph = answer;
+    case 'cs_paragraph_number':
+      data.cs_paragraphNumber = answer;
       break;
     case 'cs_why_change':
       data.cs_whyChange = answer;
-      break;
-    case 'cs_change_circumstance':
-      data.cs_changeInCircumstance = answer;
       break;
   }
 
@@ -429,6 +613,82 @@ function updateDataFromAnswer(
 export function startChat(): ChatState {
   const state = { ...initialChatState };
   return processCurrentQuestion(state);
+}
+
+/**
+ * Get a pre-fill value for a question based on extracted order data.
+ * Returns undefined if no pre-fill is available.
+ */
+export function getPrefillValue(
+  questionId: string,
+  data: ModificationChatData
+): string | undefined {
+  const extracted = data.extractedOrderData;
+  if (!extracted) return undefined;
+
+  switch (questionId) {
+    case 'case_number':
+      return extracted.caseNumber || undefined;
+    case 'full_name': {
+      if (data.role === 'petitioner') return extracted.petitionerName || undefined;
+      return extracted.respondentName || undefined;
+    }
+    case 'other_party_name': {
+      if (data.role === 'petitioner') return extracted.respondentName || undefined;
+      return extracted.petitionerName || undefined;
+    }
+
+    // LDM fields
+    case 'ldm_order_date': {
+      const s = extracted.sections?.find((x) => x.type === 'legal_decision_making');
+      return s?.orderDate || undefined;
+    }
+    case 'ldm_court_name':
+      return extracted.courtName || undefined;
+    case 'ldm_page_number': {
+      const s = extracted.sections?.find((x) => x.type === 'legal_decision_making');
+      return s?.pageNumber ? `Pg. ${s.pageNumber}` : undefined;
+    }
+    case 'ldm_paragraph_number': {
+      const s = extracted.sections?.find((x) => x.type === 'legal_decision_making');
+      return s?.paragraphNumber || undefined;
+    }
+
+    // PT fields
+    case 'pt_order_date': {
+      const s = extracted.sections?.find((x) => x.type === 'parenting_time');
+      return s?.orderDate || undefined;
+    }
+    case 'pt_court_name':
+      return extracted.courtName || undefined;
+    case 'pt_page_number': {
+      const s = extracted.sections?.find((x) => x.type === 'parenting_time');
+      return s?.pageNumber ? `Pg. ${s.pageNumber}` : undefined;
+    }
+    case 'pt_paragraph_number': {
+      const s = extracted.sections?.find((x) => x.type === 'parenting_time');
+      return s?.paragraphNumber || undefined;
+    }
+
+    // CS fields
+    case 'cs_order_date': {
+      const s = extracted.sections?.find((x) => x.type === 'child_support');
+      return s?.orderDate || undefined;
+    }
+    case 'cs_court_name':
+      return extracted.courtName || undefined;
+    case 'cs_page_number': {
+      const s = extracted.sections?.find((x) => x.type === 'child_support');
+      return s?.pageNumber ? `Pg. ${s.pageNumber}` : undefined;
+    }
+    case 'cs_paragraph_number': {
+      const s = extracted.sections?.find((x) => x.type === 'child_support');
+      return s?.paragraphNumber || undefined;
+    }
+
+    default:
+      return undefined;
+  }
 }
 
 /**

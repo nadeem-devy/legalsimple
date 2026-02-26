@@ -32,9 +32,20 @@ import {
   FileEdit,
   Sparkles,
   Loader2,
+  Upload,
+  X,
+  FileUp,
 } from "lucide-react";
 import { LogoIcon } from "@/components/ui/logo";
-import { ChatMessage, QuestionType } from "@/lib/modification-chat/types";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ChatMessage, QuestionType, ExtractedOrderData } from "@/lib/modification-chat/types";
+import { OrderReferencePanel } from "./OrderReferencePanel";
 import {
   ChatState,
   startChat,
@@ -95,6 +106,12 @@ export function ModificationChatInterface({
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Validate currentQuestionId still exists (prevents stale state after question changes)
+        if (parsed.currentQuestionId && !getQuestionById(parsed.currentQuestionId) && parsed.currentQuestionId !== 'complete') {
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(historyKey);
+          return startChat();
+        }
         parsed.messages = parsed.messages.map((m: ChatMessage) => ({
           ...m,
           timestamp: new Date(m.timestamp),
@@ -126,9 +143,13 @@ export function ModificationChatInterface({
     return [];
   });
 
-  // Persist chat state to localStorage
+  // Persist chat state to localStorage (clear on completion/stop)
   useEffect(() => {
-    if (chatState.isComplete) return;
+    if (chatState.isComplete || chatState.isStopped) {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(historyKey);
+      return;
+    }
     try {
       localStorage.setItem(storageKey, JSON.stringify(chatState));
       localStorage.setItem(historyKey, JSON.stringify(stateHistory));
@@ -146,6 +167,12 @@ export function ModificationChatInterface({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isRefining, setIsRefining] = useState(false);
   const [savedCaseId, setSavedCaseId] = useState<string | null>(null);
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [extractedData, setExtractedData] = useState<ExtractedOrderData | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -188,6 +215,7 @@ export function ModificationChatInterface({
       inputRef.current?.focus();
     }
   }, [currentQuestion]);
+
 
   const handleSubmit = useCallback(async () => {
     if (!currentQuestion) return;
@@ -241,6 +269,12 @@ export function ModificationChatInterface({
       if (trimmed && !trimmed.includes(",")) {
         setValidationError(
           "Please include city, state, and zip code separated by commas (e.g., 123 Main St, Phoenix, AZ 85001)."
+        );
+        return;
+      }
+      if (trimmed && !/\b\d{5}(-\d{4})?\b/.test(trimmed)) {
+        setValidationError(
+          "Please include a zip code in your address (e.g., 123 Main St, Phoenix, AZ 85001)."
         );
         return;
       }
@@ -377,6 +411,69 @@ export function ModificationChatInterface({
     }
   }, [currentInput, currentQuestion, isRefining]);
 
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      setUploadState('error');
+      setUploadError('Only PDF files are accepted. Please upload a PDF of your court orders.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadState('error');
+      setUploadError('File size must be under 10MB.');
+      return;
+    }
+
+    setUploadState('uploading');
+    setUploadError(null);
+    setExtractedData(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/intake/extract-orders', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to extract data from document');
+      }
+
+      const { extractedData: data } = await response.json();
+      setExtractedData(data);
+      setUploadState('success');
+    } catch (error) {
+      setUploadState('error');
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to analyze document. You can skip and enter information manually.'
+      );
+    }
+  }, []);
+
+  const handleUploadConfirm = useCallback(() => {
+    if (!extractedData) return;
+    // Pass extracted data as JSON string to the engine
+    setStateHistory((prev) => [...prev, chatState]);
+    const newState = processAnswer(chatState, JSON.stringify(extractedData));
+    setCurrentInput('');
+    setUploadState('idle');
+    setExtractedData(null);
+    setChatState(processCurrentQuestion(newState));
+  }, [extractedData, chatState]);
+
+  const handleUploadSkip = useCallback(() => {
+    setStateHistory((prev) => [...prev, chatState]);
+    const newState = processAnswer(chatState, 'skip');
+    setCurrentInput('');
+    setUploadState('idle');
+    setExtractedData(null);
+    setChatState(processCurrentQuestion(newState));
+  }, [chatState]);
+
   const handleUndo = useCallback(() => {
     if (stateHistory.length === 0) return;
 
@@ -399,10 +496,55 @@ export function ModificationChatInterface({
       currentQuestion?.type === "select"
     ) {
       setStateHistory((prev) => [...prev, chatState]);
-      setTimeout(() => {
+      setTimeout(async () => {
         const newState = processAnswer(chatState, value);
         setCurrentInput("");
         setChatState(processCurrentQuestion(newState));
+
+        // Check if complete — same save logic as handleSubmit
+        if (newState.isComplete) {
+          setIsSubmitting(true);
+          try {
+            const response = await fetch("/api/cases/save-intake", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                caseId,
+                intakeType: "modification_chat",
+                data: newState.data,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error("Failed to save intake data");
+            }
+
+            const result = await response.json();
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(historyKey);
+            toast.success("Questionnaire completed successfully!");
+
+            if (result.caseId) {
+              setSavedCaseId(result.caseId);
+            }
+
+            if (onComplete) {
+              onComplete(newState.data);
+            } else {
+              const targetCaseId = result.caseId || caseId;
+              if (targetCaseId) {
+                router.push(`/cases/${targetCaseId}?generate=true`);
+              } else {
+                router.push('/court-forms');
+              }
+            }
+          } catch (error) {
+            console.error("Error saving intake:", error);
+            toast.error("Failed to save your responses. Please try again.");
+          } finally {
+            setIsSubmitting(false);
+          }
+        }
       }, 300);
     }
   };
@@ -459,6 +601,211 @@ export function ModificationChatInterface({
             Continue
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
+        );
+
+      case "address":
+        return (
+          <div className="flex gap-3">
+            <AddressAutocomplete
+              value={currentInput}
+              onChange={setCurrentInput}
+              placeholder={currentQuestion.placeholder || "123 Main Street, Phoenix, AZ 85001"}
+              onKeyPress={handleKeyPress}
+            />
+            <Button
+              onClick={handleSubmit}
+              disabled={currentQuestion.required && !currentInput.trim()}
+              className="h-12 px-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-xl"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        );
+
+      case "file_upload":
+        return (
+          <div className="space-y-4">
+            {uploadState === 'idle' && (
+              <>
+                <div
+                  className={cn(
+                    "border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer",
+                    isDragOver
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-slate-300 hover:border-amber-400 hover:bg-amber-50/30"
+                  )}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleFileUpload(file);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FileUp className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-slate-700">
+                    Drag & drop your court order PDF here
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">or click to browse</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleUploadSkip}
+                  className="w-full h-11 text-slate-600 hover:text-slate-800"
+                >
+                  Skip — I&apos;ll enter information manually
+                </Button>
+              </>
+            )}
+
+            {uploadState === 'uploading' && (
+              <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-8 text-center">
+                <Loader2 className="h-10 w-10 text-amber-600 mx-auto mb-3 animate-spin" />
+                <p className="text-sm font-medium text-amber-800">
+                  Analyzing your court orders...
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  This may take a few moments
+                </p>
+              </div>
+            )}
+
+            {uploadState === 'success' && extractedData && (
+              <div className="space-y-4">
+                <div className="border-2 border-green-200 bg-green-50 rounded-xl p-5">
+                  <div className="flex items-start gap-3 mb-4">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-green-800">
+                        Successfully extracted information!
+                      </p>
+                      <p className="text-xs text-green-600 mt-0.5">
+                        Confidence: {extractedData.confidence}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm text-slate-700">
+                    {extractedData.caseNumber && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Case #:</span>
+                        <span>{extractedData.caseNumber}</span>
+                      </div>
+                    )}
+                    {extractedData.petitionerName && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Petitioner:</span>
+                        <span>{extractedData.petitionerName}</span>
+                      </div>
+                    )}
+                    {extractedData.respondentName && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Respondent:</span>
+                        <span>{extractedData.respondentName}</span>
+                      </div>
+                    )}
+                    {extractedData.courtName && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Court:</span>
+                        <span>{extractedData.courtName}</span>
+                      </div>
+                    )}
+                    {extractedData.children && extractedData.children.length > 0 && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Children:</span>
+                        <span>{extractedData.children.map((c) => c.name).join(', ')}</span>
+                      </div>
+                    )}
+                    {extractedData.sections && extractedData.sections.length > 0 && (
+                      <div className="flex gap-2">
+                        <span className="font-medium text-slate-500 w-28 flex-shrink-0">Sections:</span>
+                        <span>
+                          {extractedData.sections
+                            .map((s) => s.type.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '))
+                            .join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={handleUploadConfirm}
+                    className="h-11 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Use this data
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setUploadState('idle');
+                      setExtractedData(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="h-11"
+                  >
+                    Upload different file
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={handleUploadSkip}
+                  className="w-full text-sm text-slate-500 hover:text-slate-700"
+                >
+                  Skip — I&apos;ll enter information manually
+                </Button>
+              </div>
+            )}
+
+            {uploadState === 'error' && (
+              <div className="space-y-4">
+                <div className="border-2 border-red-200 bg-red-50 rounded-xl p-5">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">
+                        Could not extract information
+                      </p>
+                      <p className="text-xs text-red-600 mt-1">
+                        {uploadError}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setUploadState('idle');
+                      setUploadError(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="h-11"
+                  >
+                    Try again
+                  </Button>
+                  <Button
+                    onClick={handleUploadSkip}
+                    className="h-11 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
+                  >
+                    Enter manually
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         );
 
       case "stop":
@@ -682,6 +1029,11 @@ export function ModificationChatInterface({
                   captionLayout="dropdown"
                   fromYear={1940}
                   toYear={new Date().getFullYear()}
+                  defaultMonth={
+                    currentQuestion?.id === 'child_dob'
+                      ? new Date(new Date().getFullYear() - 5, 0)
+                      : undefined
+                  }
                 />
               </PopoverContent>
             </Popover>
@@ -758,6 +1110,16 @@ export function ModificationChatInterface({
       : null;
     if (!question) return message.content;
 
+    if (question.type === "file_upload") {
+      if (message.content === "skip") return "Skipped — entering manually";
+      try {
+        const data = JSON.parse(message.content);
+        return `Uploaded court orders (${data.confidence} confidence)`;
+      } catch {
+        return message.content;
+      }
+    }
+
     if (question.type === "yesno") {
       return message.content.toLowerCase() === "yes" ? "Yes" : "No";
     }
@@ -782,8 +1144,12 @@ export function ModificationChatInterface({
     return message.content;
   };
 
+  const referenceData = chatState.data.extractedOrderData || null;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] min-h-[600px]">
+    <div className="flex flex-row h-[calc(100vh-10rem)] min-h-[600px]">
+      {/* Chat Column */}
+      <div className="flex-1 flex flex-col min-w-0">
       {/* Header with Progress */}
       <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-amber-50 border-b border-slate-100">
         <div className="flex items-center justify-between mb-3">
@@ -844,29 +1210,38 @@ export function ModificationChatInterface({
               </div>
             )}
             <div className="flex items-start gap-2">
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-2xl py-3",
-                  message.type === "user"
-                    ? "bg-gradient-to-br from-amber-600 to-orange-600 text-white shadow-md px-6"
-                    : message.type === "system"
-                    ? "bg-amber-50 border border-amber-200 text-amber-900 px-4"
-                    : message.id ===
-                      chatState.messages[chatState.messages.length - 1]?.id
-                    ? "bg-slate-100 text-slate-800 px-4 border-2 border-amber-400"
-                    : "bg-slate-100 text-slate-800 px-4"
-                )}
-              >
-                <p
+              <div className="flex flex-col items-end gap-1">
+                <div
                   className={cn(
-                    "whitespace-pre-wrap leading-relaxed",
-                    message.type === "user" ? "text-sm" : "text-base font-semibold"
+                    "max-w-[80%] rounded-2xl py-3",
+                    message.type === "user"
+                      ? message.autoFilled
+                        ? "bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md px-6"
+                        : "bg-gradient-to-br from-amber-600 to-orange-600 text-white shadow-md px-6"
+                      : message.type === "system"
+                      ? "bg-amber-50 border border-amber-200 text-amber-900 px-4"
+                      : message.id ===
+                        chatState.messages[chatState.messages.length - 1]?.id
+                      ? "bg-slate-100 text-slate-800 px-4 border-2 border-amber-400"
+                      : "bg-slate-100 text-slate-800 px-4"
                   )}
                 >
-                  {message.type === "user"
-                    ? getAnswerDisplay(message)
-                    : message.content}
-                </p>
+                  <p
+                    className={cn(
+                      "whitespace-pre-wrap leading-relaxed",
+                      message.type === "user" ? "text-sm" : "text-base font-semibold"
+                    )}
+                  >
+                    {message.type === "user"
+                      ? getAnswerDisplay(message)
+                      : message.content}
+                  </p>
+                </div>
+                {message.type === "user" && message.autoFilled && (
+                  <span className="text-[10px] text-emerald-600 font-medium mr-1">
+                    auto-filled from uploaded orders
+                  </span>
+                )}
               </div>
               {message.type === "assistant" &&
                 message.id ===
@@ -1008,6 +1383,35 @@ export function ModificationChatInterface({
             </Button>
           </div>
         </div>
+      )}
+      </div>{/* End Chat Column */}
+
+      {/* Desktop Reference Panel */}
+      {referenceData && (
+        <div className="hidden lg:flex w-80 xl:w-96 border-l border-slate-200 bg-slate-50 flex-shrink-0">
+          <OrderReferencePanel data={referenceData} className="w-full" />
+        </div>
+      )}
+
+      {/* Mobile Reference FAB + Sheet */}
+      {referenceData && (
+        <>
+          <button
+            onClick={() => setReferenceSheetOpen(true)}
+            className="lg:hidden fixed bottom-24 right-4 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow"
+            aria-label="View court order reference"
+          >
+            <FileText className="h-5 w-5" />
+          </button>
+          <Sheet open={referenceSheetOpen} onOpenChange={setReferenceSheetOpen}>
+            <SheetContent side="right" className="p-0 w-[85vw] sm:max-w-md">
+              <SheetHeader className="px-4 pt-4 pb-0">
+                <SheetTitle className="text-sm">Court Order Reference</SheetTitle>
+              </SheetHeader>
+              <OrderReferencePanel data={referenceData} className="flex-1" />
+            </SheetContent>
+          </Sheet>
+        </>
       )}
     </div>
   );

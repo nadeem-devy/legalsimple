@@ -91,7 +91,7 @@ export default async function CourtFormsPage() {
         .select("*, intake_sessions(*)")
         .eq("client_id", user.id)
         .in("sub_type", ["divorce_no_children", "divorce_with_children", "establish_paternity", "modification"])
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       // Filter to only cases with completed intake
       cases = (casesData || []).filter(

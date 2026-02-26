@@ -3,6 +3,7 @@
 import { DivorceIntakeData, US_STATES } from "@/types/divorce-intake";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -80,11 +81,17 @@ export function SpouseInfoStep({ data, updateData }: SpouseInfoStepProps) {
       {/* Current Address */}
       <div className="space-y-2">
         <Label htmlFor="spouseAddress">Spouse&apos;s Current Street Address</Label>
-        <Input
-          id="spouseAddress"
-          placeholder="456 Oak Avenue"
+        <AddressAutocomplete
           value={data.spouseInfo.currentAddress}
-          onChange={(e) => updateSpouseInfo("currentAddress", e.target.value)}
+          onChange={(val) => updateSpouseInfo("currentAddress", val)}
+          onSelect={(details) => {
+            updateSpouseInfo("currentAddress", details.street);
+            if (details.city) updateSpouseInfo("city", details.city);
+            if (details.state) updateSpouseInfo("state", details.state);
+            if (details.zip) updateSpouseInfo("zipCode", details.zip);
+          }}
+          placeholder="456 Oak Avenue"
+          streetOnly
         />
       </div>
 

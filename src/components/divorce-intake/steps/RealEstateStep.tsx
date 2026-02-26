@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DivorceIntakeData, RealEstateProperty } from "@/types/divorce-intake";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
@@ -144,12 +145,12 @@ export function RealEstateStep({ data, updateData }: RealEstateStepProps) {
                   {/* Property Address */}
                   <div className="space-y-2">
                     <Label>Property Address</Label>
-                    <Input
-                      placeholder="123 Main St, Phoenix, AZ 85001"
+                    <AddressAutocomplete
                       value={property.address}
-                      onChange={(e) =>
-                        updateProperty(property.id, "address", e.target.value)
+                      onChange={(val) =>
+                        updateProperty(property.id, "address", val)
                       }
+                      placeholder="123 Main St, Phoenix, AZ 85001"
                     />
                   </div>
 

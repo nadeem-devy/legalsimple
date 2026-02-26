@@ -114,14 +114,6 @@ export const pleadingStyles = StyleSheet.create({
 
   captionCaseNumber: {
     fontSize: 12,
-    marginBottom: 4,
-  },
-
-  captionCaseNumberValue: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#000',
-    minWidth: 100,
-    paddingBottom: 2,
     marginBottom: 8,
   },
 

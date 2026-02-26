@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
@@ -112,17 +113,13 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Address</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="address"
-                  value={profile.address}
-                  onChange={(e) =>
-                    setProfile({ ...profile, address: e.target.value })
-                  }
-                  className="pl-10"
-                />
-              </div>
+              <AddressAutocomplete
+                value={profile.address}
+                onChange={(val) =>
+                  setProfile({ ...profile, address: val })
+                }
+                placeholder="123 Main Street, Phoenix, AZ 85001"
+              />
             </div>
           </div>
           <Button onClick={handleSaveProfile} disabled={loading}>

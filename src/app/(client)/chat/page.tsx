@@ -308,7 +308,7 @@ export default function NewCasePage() {
     // Modification of Existing Court Orders
     if (selectedSubType === "modification") {
       return (
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl lg:max-w-7xl mx-auto">
           <div className="mb-4">
             <Button variant="ghost" onClick={handleBack} className="mb-2">
               <ArrowLeft className="h-4 w-4 mr-2" />

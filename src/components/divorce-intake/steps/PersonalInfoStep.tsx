@@ -3,6 +3,7 @@
 import { DivorceIntakeData, ARIZONA_COUNTIES, US_STATES } from "@/types/divorce-intake";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -80,11 +81,17 @@ export function PersonalInfoStep({ data, updateData }: PersonalInfoStepProps) {
       {/* Current Address */}
       <div className="space-y-2">
         <Label htmlFor="address">Current Street Address</Label>
-        <Input
-          id="address"
-          placeholder="123 Main Street, Apt 4B"
+        <AddressAutocomplete
           value={data.personalInfo.currentAddress}
-          onChange={(e) => updatePersonalInfo("currentAddress", e.target.value)}
+          onChange={(val) => updatePersonalInfo("currentAddress", val)}
+          onSelect={(details) => {
+            updatePersonalInfo("currentAddress", details.street);
+            if (details.city) updatePersonalInfo("city", details.city);
+            if (details.state) updatePersonalInfo("state", details.state);
+            if (details.zip) updatePersonalInfo("zipCode", details.zip);
+          }}
+          placeholder="123 Main Street, Apt 4B"
+          streetOnly
         />
       </div>
 

@@ -172,6 +172,7 @@ export interface DivorceWithChildrenChatData {
   spouseFullName: string;
   spouseGender: 'male' | 'female';
   spouseDateOfBirth: string;
+  spouseAddressKnown: boolean;
   spouseMailingAddress: string;
   spouseSsn4: string;
   spousePhone: string;
@@ -205,6 +206,7 @@ export interface DivorceWithChildrenChatData {
 
   // Domestic Violence
   hasDomesticViolence: boolean;
+  domesticViolenceCommittedBy?: 'petitioner' | 'respondent';
   domesticViolenceOption?: 'no_joint_decision' | 'joint_despite_violence';
   domesticViolenceExplanation?: string;
 
@@ -215,6 +217,9 @@ export interface DivorceWithChildrenChatData {
   // Child Support
   seekingChildSupport: boolean;
   hasVoluntaryChildSupport?: boolean;
+  voluntaryPaymentWho?: 'petitioner' | 'respondent';
+  voluntaryPaymentAmount?: string;
+  voluntaryPaymentStartDate?: string;
   voluntaryChildSupportDetails?: string;
   pastSupportPeriod?: 'from_filing' | 'from_separation';
 
@@ -362,6 +367,7 @@ export const initialDivorceWithChildrenChatData: DivorceWithChildrenChatData = {
   spouseFullName: '',
   spouseGender: 'male',
   spouseDateOfBirth: '',
+  spouseAddressKnown: true,
   spouseMailingAddress: '',
   spouseSsn4: '',
   spousePhone: '',
