@@ -21,6 +21,26 @@ const PAGE_NUMBER_OPTIONS = Array.from({ length: 30 }, (_, i) => ({
   label: `Page ${i + 1}`,
 }));
 
+// Paragraph/section options — numbers, letters, and roman numerals
+const PARAGRAPH_NUMBER_OPTIONS = [
+  // Numbers 1-30
+  ...Array.from({ length: 30 }, (_, i) => ({
+    value: `${i + 1}`,
+    label: `Paragraph ${i + 1}`,
+  })),
+  // Letters A-Z
+  ...Array.from({ length: 26 }, (_, i) => ({
+    value: String.fromCharCode(65 + i),
+    label: `Paragraph ${String.fromCharCode(65 + i)}`,
+  })),
+  // Roman numerals (multi-character to avoid overlap with letters I, V, X)
+  ...['II', 'III', 'IV', 'VI', 'VII', 'VIII', 'IX', 'XI', 'XII',
+    'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX',
+  ].map((r) => ({
+    value: r,
+    label: `Section ${r}`,
+  })),
+];
 
 export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
   // =====================
@@ -311,11 +331,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'ldm_paragraph_number',
-    type: 'text',
+    type: 'select',
     question:
       'What paragraph or section is the Legal Decision Making Order you wish to change?',
-    placeholder: 'e.g., 4, G, Section 3, IV',
-    tooltip: 'Enter the paragraph number, letter, or section identifier as it appears in your court order.',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'ldm_why_change',
   },
@@ -402,11 +421,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'pt_paragraph_number',
-    type: 'text',
+    type: 'select',
     question:
       'What paragraph or section is the Parenting Time Order you wish to change?',
-    placeholder: 'e.g., 4, G, Section 3, IV',
-    tooltip: 'Enter the paragraph number, letter, or section identifier as it appears in your court order.',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'pt_why_change',
   },
@@ -541,11 +559,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'cs_paragraph_number',
-    type: 'text',
+    type: 'select',
     question:
       'What paragraph or section is the Child Support Order you wish to change?',
-    placeholder: 'e.g., 4, G, Section 3, IV',
-    tooltip: 'Enter the paragraph number, letter, or section identifier as it appears in your court order.',
+    options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'cs_why_change',
   },
