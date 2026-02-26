@@ -8,15 +8,18 @@ function getOpenAI() {
   });
 }
 
-const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Your job is to extract specific structured information from the document.
+const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Your job is to extract the COMPLETE content of the court order as structured data.
 
-Extract the following information and return ONLY valid JSON (no markdown, no code fences, no explanation):
+Return ONLY valid JSON (no markdown, no code fences, no explanation):
 
 {
   "caseNumber": "the case number (e.g., FC2024-001234) or null",
   "petitionerName": "full legal name of the petitioner/plaintiff or null",
   "respondentName": "full legal name of the respondent/defendant or null",
   "courtName": "full name of the court (e.g., Maricopa County Superior Court) or null",
+  "orderDate": "the date the order was signed/entered (MM/DD/YYYY) or null",
+  "orderTitle": "the title of the order (e.g., CONSENT DECREE OF DISSOLUTION OF MARRIAGE) or null",
+  "judgeName": "the name of the judge or null",
   "children": [
     { "name": "child's full legal name", "dateOfBirth": "MM/DD/YYYY or null" }
   ],
@@ -26,23 +29,38 @@ Extract the following information and return ONLY valid JSON (no markdown, no co
       "pageNumber": "page number as a string or null",
       "paragraphNumber": "paragraph number as a string or null",
       "orderDate": "MM/DD/YYYY or null",
-      "summary": "brief 1-2 sentence summary of what this section of the order says",
-      "verbatimText": "the EXACT word-for-word text of this section as it appears in the order"
+      "summary": "brief 1-2 sentence summary",
+      "verbatimText": "exact text of this section"
+    }
+  ],
+  "fullOrderContent": [
+    {
+      "paragraphId": "the paragraph number/letter as written (e.g., '1', '6.B', 'E')",
+      "heading": "bold heading text if any (e.g., 'CHILD CUSTODY', 'CHILD SUPPORT') or null",
+      "text": "the EXACT word-for-word verbatim text of this paragraph/section including all sub-content",
+      "sectionGroup": "findings or orders or declarations or other",
+      "type": "legal_decision_making or parenting_time or child_support or property or spousal_maintenance or other"
     }
   ],
   "confidence": "high or medium or low"
 }
 
-RULES:
+CRITICAL RULES:
 - Return ONLY the JSON object. No other text.
 - Use null for any field you cannot determine from the document.
-- For children, include all minor children mentioned in the orders.
-- For sections, identify all distinct order sections related to: legal decision making (custody), parenting time (visitation), and child support.
-- The "type" field should classify each section as one of: "legal_decision_making", "parenting_time", "child_support", or "other".
-- Page numbers should be the actual page number in the document where the section appears.
-- Paragraph numbers should be the paragraph/section number as written in the order.
-- IMPORTANT: For "verbatimText", copy the EXACT text of each section/paragraph from the court order word-for-word. Include the complete paragraph text as written in the document. This is critical for the modification petition to reference the original order language.
-- Set confidence to "high" if the document is clearly a court order with readable text, "medium" if some fields are uncertain, "low" if the text is largely unreadable or not a court order.`;
+
+SECTIONS array: Only include sections related to legal decision making, parenting time, and child support. This is used for pre-filling form fields.
+
+FULL ORDER CONTENT array - THIS IS THE MOST IMPORTANT PART:
+- Extract EVERY paragraph from the court order in document order.
+- Include ALL content from the "THE COURT FINDS:", "THE COURT FURTHER FINDS THAT:", "THE COURT ORDERS:" sections and any similar sections.
+- Copy each paragraph EXACTLY word-for-word as written in the document.
+- Include sub-sections as separate entries (e.g., if paragraph 6 has sub-sections A, B, C, include "6" as the main entry and "6.A", "6.B", "6.C" as separate entries).
+- For "sectionGroup": use "findings" for "THE COURT FINDS" paragraphs, "orders" for "THE COURT ORDERS" paragraphs, "declarations" for declarations/waivers, "other" for everything else.
+- For "type": classify as "legal_decision_making" (custody), "parenting_time" (visitation schedule), "child_support", "property", "spousal_maintenance", or "other".
+- Include section group headers (like "THE COURT FINDS:", "THE COURT ORDERS:") as separate entries with paragraphId "header" and the header text.
+- Do NOT include exhibits, signature pages, or oath/affirmation pages.
+- The goal is to capture the complete operative court order so it can be reproduced with specific paragraphs modified.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,7 +109,7 @@ export async function POST(request: NextRequest) {
     // Send PDF directly to OpenAI GPT-4o for extraction
     const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: "system",

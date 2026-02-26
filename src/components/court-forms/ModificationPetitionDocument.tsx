@@ -1,6 +1,7 @@
 import { Document, Page, View, Text, Image } from '@react-pdf/renderer';
 import { pleadingStyles as styles } from '@/lib/court-forms/PleadingStyles';
 import { NormalizedPDFData } from '@/lib/court-forms/data-mapper';
+import type { OrderContentBlock } from '@/lib/modification-chat/types';
 
 interface ModificationPetitionDocumentProps {
   data: NormalizedPDFData;
@@ -79,8 +80,6 @@ function formatParagraphRef(value: string | undefined): string {
 }
 
 // Format modification type for legal decision making
-// context 'request' = used in "the Court order ___" phrasing
-// context 'prayer' = used in "so that ___" phrasing
 function formatLdmModificationType(type: string, role: 'petitioner' | 'respondent', context: 'request' | 'prayer' = 'prayer'): string {
   const filingParty = role === 'petitioner' ? 'Petitioner' : 'Respondent';
   const normalized = type.toLowerCase();
@@ -98,7 +97,6 @@ function formatLdmModificationType(type: string, role: 'petitioner' | 'responden
     }
   }
 
-  // prayer context
   switch (normalized) {
     case 'sole_to_me':
       return `sole legal decision-making authority be awarded to ${filingParty}`;
@@ -129,32 +127,266 @@ function formatPtSchedule(schedule: string): string {
   }
 }
 
-export function ModificationPetitionDocument({ data, caseNumber, signature }: ModificationPetitionDocumentProps) {
-  const { petitioner, respondent, modification } = data;
+// Generate replacement text for a modified section
+function getModifiedText(
+  block: OrderContentBlock,
+  modification: NonNullable<NormalizedPDFData['modification']>
+): string | null {
+  const mods = modification.modificationsSelected;
 
-  if (!modification) {
-    return (
-      <Document>
-        <Page size="LETTER" style={styles.page}>
-          <Text>Error: No modification data available.</Text>
-        </Page>
-      </Document>
-    );
+  if (block.type === 'legal_decision_making' && mods.includes('legal_decision_making') && modification.ldm) {
+    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
+    const ldmType = formatLdmModificationType(modification.ldm.modificationType, modification.role, 'request');
+    return `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}The Court orders ${ldmType}. ${filingParty} requests this modification because: ${modification.ldm.whyChange || '___'}.`;
   }
+
+  if (block.type === 'parenting_time' && mods.includes('parenting_time') && modification.pt) {
+    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
+    const schedule = formatPtSchedule(modification.pt.newSchedule);
+    let text = `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}The Court orders ${schedule}. ${filingParty} requests this modification because: ${modification.pt.whyChange || '___'}.`;
+    if (modification.pt.supervised) {
+      text += ` Parenting time shall be supervised${modification.pt.supervisedReason ? ` because: ${modification.pt.supervisedReason}` : ''}.`;
+    }
+    return text;
+  }
+
+  if (block.type === 'child_support' && mods.includes('child_support') && modification.cs) {
+    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
+    return `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}Child support shall be recalculated and paid in accordance with the Arizona Child Support Guidelines pursuant to A.R.S. §25-320. ${filingParty} requests this modification because: ${modification.cs.whyChange || '___'}.`;
+  }
+
+  return null;
+}
+
+// ============================================================
+// PROPOSED MODIFIED ORDER — Full order reproduction with edits
+// ============================================================
+function ProposedModifiedOrder({
+  data,
+  caseNumber,
+  signature,
+}: ModificationPetitionDocumentProps) {
+  const { petitioner, respondent, modification } = data;
+  if (!modification) return null;
+
+  const fullContent = modification.fullOrderContent || [];
+  const displayCaseNumber = caseNumber || modification.caseNumber || '';
+  const firstCourtName = modification.ldm?.courtName || modification.pt?.courtName || modification.cs?.courtName || '';
+  const county = extractCounty(firstCourtName);
+  const filingPartyName = modification.role === 'petitioner' ? petitioner.name : respondent.name;
+  const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
+  const orderTitle = modification.orderTitle || 'COURT ORDER';
+
+  return (
+    <Document
+      title={`Proposed Modified Order - ${filingPartyName}`}
+      author="LegalSimple"
+      subject="Proposed Modified Order"
+      creator="LegalSimple Court Forms"
+    >
+      <Page size="LETTER" style={styles.page}>
+        <LineNumbers />
+
+        {/* Pro-Per Identification Block */}
+        <View style={styles.proPerBlock}>
+          <Text style={styles.proPerLine}>{filingPartyName || '[FILING PARTY NAME]'}</Text>
+          <Text style={styles.proPerLine}>{modification.role === 'petitioner' ? petitioner.address : respondent.address || '[ADDRESS]'}</Text>
+          <Text style={styles.proPerLabel}>Appearing pro-per</Text>
+        </View>
+
+        {/* Court Header */}
+        <View style={styles.courtHeader} wrap={false}>
+          <Text style={styles.courtHeaderLine}>IN THE SUPERIOR COURT OF THE STATE OF ARIZONA</Text>
+          <Text style={styles.courtHeaderLine}>IN AND FOR THE COUNTY OF {county?.toUpperCase() || '____________'}</Text>
+        </View>
+
+        {/* Case Caption */}
+        <View style={styles.caseCaption} wrap={false}>
+          <View style={styles.captionLeft}>
+            <Text style={styles.captionPartyName}>In re the Matter of:</Text>
+            <Text style={styles.captionPartyName}>{petitioner.name?.toUpperCase() || '[PETITIONER NAME]'},</Text>
+            <Text style={styles.captionPartyRole}>Petitioner,</Text>
+            <Text style={styles.captionAnd}>and</Text>
+            <Text style={styles.captionPartyName}>{respondent.name?.toUpperCase() || '[RESPONDENT NAME]'},</Text>
+            <Text style={styles.captionPartyRole}>Respondent.</Text>
+          </View>
+
+          <View style={styles.captionParentheses}>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+            <Text style={styles.captionParen}>)</Text>
+          </View>
+
+          <View style={styles.captionRight}>
+            <Text style={styles.captionCaseNumber}>Case No.: {displayCaseNumber || '_______________'}</Text>
+            <Text style={styles.captionTitle}>
+              PROPOSED MODIFIED {orderTitle.toUpperCase()}
+            </Text>
+            {modification.judgeName && (
+              <Text style={{ fontSize: 10, marginTop: 4, textAlign: 'center' }}>
+                ({modification.judgeName})
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Render full order content — replace modified sections */}
+        {fullContent.map((block, idx) => {
+          // Section group headers (e.g., "THE COURT FINDS:", "THE COURT ORDERS:")
+          if (block.paragraphId === 'header') {
+            return (
+              <View key={idx} style={styles.section} wrap={false}>
+                <Text style={styles.sectionTitle}>{block.text}</Text>
+              </View>
+            );
+          }
+
+          // Check if this block should be replaced with modified text
+          const modifiedText = getModifiedText(block, modification);
+
+          if (modifiedText) {
+            // Render modified paragraph
+            return (
+              <View key={idx} style={styles.numberedParagraph} wrap={false}>
+                <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
+                <Text style={styles.paragraphContent}>
+                  <Text style={{ fontWeight: 'bold' }}>{block.heading ? block.heading + '.  ' : ''}</Text>
+                  {modifiedText}
+                </Text>
+              </View>
+            );
+          }
+
+          // Render original paragraph unchanged
+          return (
+            <View key={idx} style={styles.numberedParagraph} wrap={false}>
+              <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
+              <Text style={styles.paragraphContent}>
+                {block.heading ? (
+                  <>
+                    <Text style={{ fontWeight: 'bold' }}>{block.heading}.  </Text>
+                    {block.text}
+                  </>
+                ) : (
+                  block.text
+                )}
+              </Text>
+            </View>
+          );
+        })}
+
+        {/* SIGNATURE / DATE BLOCK */}
+        <View style={{ marginTop: 24 }} wrap={false}>
+          <Text style={styles.paragraph}>
+            Dated this ___ day of _________________, 20_____.
+          </Text>
+        </View>
+
+        <View style={styles.signatureSection} wrap={false}>
+          <View style={{ textAlign: 'right', marginBottom: 8 }}>
+            {signature ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 12, marginBottom: 4 }}>By: </Text>
+                <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 200, paddingBottom: 4 }}>
+                  <Image src={signature} style={{ height: 40, objectFit: 'contain' }} />
+                </View>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 12, marginBottom: 4 }}>By: ___________________________</Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 12 }}>{filingPartyName || '_____________________'}</Text>
+            <Text style={{ fontSize: 12, fontStyle: 'italic' }}>Appearing Pro-Per</Text>
+          </View>
+        </View>
+
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          fixed
+        />
+      </Page>
+
+      {/* VERIFICATION PAGE */}
+      <Page size="LETTER" style={styles.page}>
+        <LineNumbers />
+
+        <View style={styles.courtHeader} wrap={false}>
+          <Text style={{ ...styles.courtHeaderLine, fontSize: 14, fontWeight: 'bold', marginBottom: 16 }}>VERIFICATION</Text>
+        </View>
+
+        <Text style={styles.paragraph}>
+          STATE OF ARIZONA{'\t\t\t\t'})
+        </Text>
+        <Text style={styles.paragraph}>
+          {'\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t'}) ss.
+        </Text>
+        <Text style={styles.paragraph}>
+          County of {county || '_____________'}{'\t\t'})
+        </Text>
+
+        <Text style={{ ...styles.paragraph, marginTop: 16 }}>
+          I, {filingPartyName || '___________________________'}, the {filingParty} herein, being first duly sworn upon his/her oath, deposes and says:
+        </Text>
+
+        <Text style={{ ...styles.paragraph, marginTop: 12 }}>
+          That I have read the foregoing Proposed Modified Order and know the contents thereof, and the same is true and correct to the best of my knowledge and belief.
+        </Text>
+
+        <View style={{ marginTop: 40, marginLeft: 240 }} wrap={false}>
+          {signature ? (
+            <View>
+              <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 200, paddingBottom: 4 }}>
+                <Image src={signature} style={{ height: 40, objectFit: 'contain' }} />
+              </View>
+              <Text style={{ fontSize: 12 }}>{filingPartyName}</Text>
+            </View>
+          ) : (
+            <View>
+              <Text style={{ fontSize: 12 }}>___________________________</Text>
+              <Text style={{ fontSize: 12 }}>{filingPartyName || filingParty}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={{ marginTop: 20, marginLeft: 240 }}>
+          <Text style={{ fontSize: 12 }}>Date: ___________________________</Text>
+        </View>
+
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          fixed
+        />
+      </Page>
+    </Document>
+  );
+}
+
+// ===========================================================
+// PETITION TO MODIFY — Generic template (no uploaded order)
+// ===========================================================
+function PetitionToModify({
+  data,
+  caseNumber,
+  signature,
+}: ModificationPetitionDocumentProps) {
+  const { petitioner, respondent, modification } = data;
+  if (!modification) return null;
 
   const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
   const otherParty = modification.role === 'petitioner' ? 'Respondent' : 'Petitioner';
   const filingPartyName = modification.role === 'petitioner' ? petitioner.name : respondent.name;
   const filingPartyAddress = modification.role === 'petitioner' ? petitioner.address : respondent.address;
-
-  // Determine county from the first available court name
   const firstCourtName = modification.ldm?.courtName || modification.pt?.courtName || modification.cs?.courtName || '';
   const county = extractCounty(firstCourtName);
 
-  // Auto-incrementing paragraph counter
   let paraNum = 0;
-
-  // Build children text
   const childCount = modification.children.length;
   const childrenText = modification.children.map((child, i) => {
     const name = child.name?.toUpperCase() || `CHILD ${i + 1}`;
@@ -162,7 +394,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
     return `${name}, (D.O.B. ${dob})`;
   }).join('; ') || '';
 
-  // Build title based on selected modifications
   const modTitleParts: string[] = [];
   if (modification.modificationsSelected.includes('legal_decision_making')) modTitleParts.push('LEGAL DECISION MAKING');
   if (modification.modificationsSelected.includes('parenting_time')) modTitleParts.push('PARENTING TIME');
@@ -179,23 +410,19 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
       creator="LegalSimple Court Forms"
     >
       <Page size="LETTER" style={styles.page}>
-        {/* Line Numbers */}
         <LineNumbers />
 
-        {/* Pro-Per Identification Block */}
         <View style={styles.proPerBlock}>
           <Text style={styles.proPerLine}>{filingPartyName || '[FILING PARTY NAME]'}</Text>
           <Text style={styles.proPerLine}>{filingPartyAddress || '[ADDRESS]'}</Text>
           <Text style={styles.proPerLabel}>Appearing pro-per</Text>
         </View>
 
-        {/* Court Header */}
         <View style={styles.courtHeader} wrap={false}>
           <Text style={styles.courtHeaderLine}>IN THE SUPERIOR COURT OF THE STATE OF ARIZONA</Text>
           <Text style={styles.courtHeaderLine}>IN AND FOR THE COUNTY OF {county?.toUpperCase() || '____________'}</Text>
         </View>
 
-        {/* Case Caption */}
         <View style={styles.caseCaption} wrap={false}>
           <View style={styles.captionLeft}>
             <Text style={styles.captionPartyName}>In re the matter of:</Text>
@@ -206,7 +433,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             <Text style={styles.captionPartyRole}>Respondent.</Text>
           </View>
 
-          {/* Parentheses Column */}
           <View style={styles.captionParentheses}>
             <Text style={styles.captionParen}>)</Text>
             <Text style={styles.captionParen}>)</Text>
@@ -217,7 +443,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
             <Text style={styles.captionParen}>)</Text>
           </View>
 
-          {/* Right Side - Case Number and Title */}
           <View style={styles.captionRight}>
             <Text style={styles.captionCaseNumber}>Case No.: {displayCaseNumber || '_______________'}</Text>
             <Text style={styles.captionTitle}>
@@ -226,32 +451,27 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           </View>
         </View>
 
-        {/* Introduction */}
         <Text style={styles.paragraph}>
           {filingPartyName?.toUpperCase() || '[FILING PARTY NAME]'} (&ldquo;{filingParty}&rdquo;), for {modification.role === 'petitioner' ? 'his/her' : 'his/her'} Petition to Modify {modTitle} (&ldquo;Petition&rdquo;) pursuant to A.R.S. &sect;25-411 alleges as follows:
         </Text>
 
-        {/* PARAGRAPH 1: Filing party identity */}
         <NumberedParagraph num={++paraNum}>
           {filingParty}&apos;s name is {filingPartyName || '[NAME]'}. {filingParty} was the {modification.role === 'petitioner' ? 'Petitioner' : 'Respondent'} in the original action.
         </NumberedParagraph>
 
-        {/* PARAGRAPH 2: Other party identity */}
         <NumberedParagraph num={++paraNum}>
           {otherParty}&apos;s name is {modification.role === 'petitioner' ? respondent.name : petitioner.name || '[NAME]'}.
         </NumberedParagraph>
 
-        {/* PARAGRAPH 3: Original case */}
         <NumberedParagraph num={++paraNum}>
           The parties are subject to existing court orders entered in Case No. {displayCaseNumber || '_______________'}.
         </NumberedParagraph>
 
-        {/* PARAGRAPH 4: Children */}
         <NumberedParagraph num={++paraNum}>
           The parties are the parents of {childCount === 1 ? 'one minor child' : `${childCount} minor children`}, namely: {childrenText}.
         </NumberedParagraph>
 
-        {/* === LEGAL DECISION MAKING MODIFICATION === */}
+        {/* === LEGAL DECISION MAKING === */}
         {modification.ldm && (
           <>
             <View style={styles.section} wrap={false}>
@@ -282,7 +502,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           </>
         )}
 
-        {/* === PARENTING TIME MODIFICATION === */}
+        {/* === PARENTING TIME === */}
         {modification.pt && (
           <>
             <View style={styles.section} wrap={false}>
@@ -319,7 +539,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           </>
         )}
 
-        {/* === CHILD SUPPORT MODIFICATION === */}
+        {/* === CHILD SUPPORT === */}
         {modification.cs && (
           <>
             <View style={styles.section} wrap={false}>
@@ -350,7 +570,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           </>
         )}
 
-        {/* WHEREFORE PRAYER */}
+        {/* WHEREFORE */}
         <View wrap={false}>
           <Text style={{ ...styles.paragraph, marginTop: 12 }}>
             <Text style={{ fontWeight: 'bold' }}>WHEREFORE</Text> {filingParty} prays that this Court will grant the following orders:
@@ -358,7 +578,7 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
         </View>
 
         {(() => {
-          let prayerLetter = 65; // ASCII 'A'
+          let prayerLetter = 65;
           return (
             <>
               {modification.ldm && (
@@ -366,19 +586,16 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
                   Modify the existing Legal Decision Making orders so that {formatLdmModificationType(modification.ldm.modificationType, modification.role, 'prayer')};
                 </PrayerItem>
               )}
-
               {modification.pt && (
                 <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
                   Modify the existing Parenting Time orders to award {formatPtSchedule(modification.pt.newSchedule)};
                 </PrayerItem>
               )}
-
               {modification.cs && (
                 <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
                   Modify the existing Child Support orders in accordance with the Arizona Child Support Guidelines;
                 </PrayerItem>
               )}
-
               <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
                 Such other and further relief as the Court deems just and proper.
               </PrayerItem>
@@ -386,12 +603,10 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           );
         })()}
 
-        {/* RESPECTFULLY SUBMITTED */}
         <Text style={styles.respectfullySubmitted}>
           RESPECTFULLY SUBMITTED this ___ day of _________________, 20_____.
         </Text>
 
-        {/* SIGNATURE BLOCK */}
         <View style={styles.signatureSection} wrap={false}>
           <View style={{ textAlign: 'right', marginBottom: 8 }}>
             <Text style={{ fontSize: 12, marginBottom: 12 }}>
@@ -414,7 +629,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           </View>
         </View>
 
-        {/* FILING BLOCK */}
         <View style={styles.filingBlock} wrap={false}>
           <Text style={styles.filingLine}>Original of the foregoing</Text>
           <Text style={styles.filingLine}>filed this ___ day of _________________ 20____</Text>
@@ -422,7 +636,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           <Text style={styles.filingLine}>{county || '_____'} County Superior Court</Text>
         </View>
 
-        {/* Page Number */}
         <Text
           style={styles.pageNumber}
           render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
@@ -456,7 +669,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           That I have read the foregoing Petition to Modify and know the contents thereof, and the same is true and correct to the best of my knowledge and belief.
         </Text>
 
-        {/* Signature */}
         <View style={{ marginTop: 40, marginLeft: 240 }} wrap={false}>
           {signature ? (
             <View>
@@ -477,7 +689,6 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
           <Text style={{ fontSize: 12 }}>Date: ___________________________</Text>
         </View>
 
-        {/* Page Number */}
         <Text
           style={styles.pageNumber}
           render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
@@ -486,6 +697,31 @@ export function ModificationPetitionDocument({ data, caseNumber, signature }: Mo
       </Page>
     </Document>
   );
+}
+
+// ===========================================================
+// MAIN COMPONENT — Chooses between full order or petition
+// ===========================================================
+export function ModificationPetitionDocument({ data, caseNumber, signature }: ModificationPetitionDocumentProps) {
+  const { modification } = data;
+
+  if (!modification) {
+    return (
+      <Document>
+        <Page size="LETTER" style={styles.page}>
+          <Text>Error: No modification data available.</Text>
+        </Page>
+      </Document>
+    );
+  }
+
+  // If we have full order content from an uploaded PDF, render the proposed modified order
+  if (modification.fullOrderContent && modification.fullOrderContent.length > 0) {
+    return <ProposedModifiedOrder data={data} caseNumber={caseNumber} signature={signature} />;
+  }
+
+  // Otherwise, use the standard petition template
+  return <PetitionToModify data={data} caseNumber={caseNumber} signature={signature} />;
 }
 
 export default ModificationPetitionDocument;
