@@ -8,7 +8,7 @@ function getOpenAI() {
   });
 }
 
-const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Your job is to extract specific structured information from the document text.
+const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Your job is to extract specific structured information from the document.
 
 Extract the following information and return ONLY valid JSON (no markdown, no code fences, no explanation):
 
@@ -80,33 +80,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract text from PDF
+    // Convert PDF to base64 and send directly to OpenAI
+    // This handles both text-based and scanned/image-based PDFs
     const buffer = Buffer.from(await file.arrayBuffer());
+    const base64 = buffer.toString("base64");
+    const fileDataUrl = `data:application/pdf;base64,${base64}`;
 
-    // pdf-parse v1: use internal lib to avoid test-file-loading bug
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse/lib/pdf-parse");
-    const pdfData = await pdfParse(buffer);
-
-    if (!pdfData.text || pdfData.text.trim().length < 50) {
-      return NextResponse.json(
-        {
-          error:
-            "Could not extract text from this PDF. It may be a scanned document or image-based PDF. Please enter your information manually.",
-        },
-        { status: 422 }
-      );
-    }
-
-    // Truncate text if very long
-    const maxChars = 80000;
-    const pdfText =
-      pdfData.text.length > maxChars
-        ? pdfData.text.substring(0, maxChars) +
-          "\n\n[Document truncated due to length]"
-        : pdfData.text;
-
-    // Send to OpenAI for extraction
+    // Send PDF directly to OpenAI GPT-4o for extraction
     const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       max_tokens: 4096,
@@ -117,7 +97,19 @@ export async function POST(request: NextRequest) {
         },
         {
           role: "user",
-          content: `Here is the text extracted from a court order document:\n\n${pdfText}`,
+          content: [
+            {
+              type: "file",
+              file: {
+                filename: file.name || "court-order.pdf",
+                file_data: fileDataUrl,
+              },
+            },
+            {
+              type: "text",
+              text: "Extract the structured information from this court order document.",
+            },
+          ],
         },
       ],
     });
