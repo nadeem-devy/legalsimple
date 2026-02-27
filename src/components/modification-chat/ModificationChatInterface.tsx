@@ -35,6 +35,7 @@ import {
   Upload,
   X,
   FileUp,
+  Eye,
 } from "lucide-react";
 import { LogoIcon } from "@/components/ui/logo";
 import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
@@ -44,6 +45,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { ChatMessage, QuestionType, ExtractedOrderData } from "@/lib/modification-chat/types";
 import { OrderReferencePanel } from "./OrderReferencePanel";
 import {
@@ -173,6 +182,7 @@ export function ModificationChatInterface({
   const [uploadedOrderPath, setUploadedOrderPath] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
+  const [documentPreviewOpen, setDocumentPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -752,6 +762,18 @@ export function ModificationChatInterface({
                     )}
                   </div>
                 </div>
+                {/* View Document Preview Button */}
+                {extractedData.fullOrderContent && extractedData.fullOrderContent.length > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setDocumentPreviewOpen(true)}
+                    className="w-full h-11 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Extracted Document ({extractedData.fullOrderContent.length} sections)
+                  </Button>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     onClick={handleUploadConfirm}
@@ -1426,6 +1448,116 @@ export function ModificationChatInterface({
           </Sheet>
         </>
       )}
+      {/* Document Preview Dialog */}
+      <Dialog open={documentPreviewOpen} onOpenChange={setDocumentPreviewOpen}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-0 flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              Extracted Court Order
+            </DialogTitle>
+            {extractedData && (
+              <div className="flex flex-wrap gap-3 text-xs text-slate-500 mt-1">
+                {extractedData.orderTitle && (
+                  <span className="font-medium text-slate-700">{extractedData.orderTitle}</span>
+                )}
+                {extractedData.caseNumber && (
+                  <span>Case #: {extractedData.caseNumber}</span>
+                )}
+                {extractedData.orderDate && (
+                  <span>Date: {extractedData.orderDate}</span>
+                )}
+              </div>
+            )}
+          </DialogHeader>
+
+          <Separator className="mx-6 mt-3" />
+
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="px-6 py-4">
+              {/* Court document styled preview */}
+              <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
+                {/* Document header */}
+                {extractedData && (
+                  <div className="border-b border-slate-200 px-8 py-6 text-center space-y-1">
+                    {extractedData.courtName && (
+                      <p className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                        {extractedData.courtName}
+                      </p>
+                    )}
+                    {extractedData.orderTitle && (
+                      <p className="text-sm font-semibold uppercase text-slate-700 mt-3">
+                        {extractedData.orderTitle}
+                      </p>
+                    )}
+                    <div className="flex justify-center gap-6 mt-3 text-xs text-slate-500">
+                      {extractedData.caseNumber && (
+                        <span>Case No.: <span className="font-medium text-slate-700">{extractedData.caseNumber}</span></span>
+                      )}
+                      {extractedData.orderDate && (
+                        <span>Date: <span className="font-medium text-slate-700">{extractedData.orderDate}</span></span>
+                      )}
+                      {extractedData.judgeName && (
+                        <span>Judge: <span className="font-medium text-slate-700">{extractedData.judgeName}</span></span>
+                      )}
+                    </div>
+                    {/* Parties */}
+                    {(extractedData.petitionerName || extractedData.respondentName) && (
+                      <div className="flex justify-center gap-8 mt-3 text-xs text-slate-600">
+                        {extractedData.petitionerName && (
+                          <span><span className="text-slate-400">Petitioner:</span> {extractedData.petitionerName}</span>
+                        )}
+                        {extractedData.respondentName && (
+                          <span><span className="text-slate-400">Respondent:</span> {extractedData.respondentName}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Document body — all extracted text blocks */}
+                <div className="px-8 py-6 space-y-0">
+                  {extractedData?.fullOrderContent?.map((block, idx) => {
+                    const sectionType = block.type;
+                    const isModifiable = sectionType === 'legal_decision_making' || sectionType === 'parenting_time' || sectionType === 'child_support';
+                    const typeLabel = sectionType === 'legal_decision_making' ? 'Legal Decision Making'
+                      : sectionType === 'parenting_time' ? 'Parenting Time'
+                      : sectionType === 'child_support' ? 'Child Support'
+                      : null;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "py-2 text-sm leading-relaxed text-slate-800",
+                          isModifiable && "bg-amber-50 border-l-4 border-amber-400 pl-4 pr-2 -ml-4 rounded-r my-2"
+                        )}
+                      >
+                        {isModifiable && typeLabel && (
+                          <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded mb-1">
+                            {typeLabel}
+                          </span>
+                        )}
+                        <p className="whitespace-pre-wrap">{block.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+
+          <Separator />
+          <div className="px-6 py-4 flex-shrink-0 flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              {extractedData?.fullOrderContent?.length || 0} text blocks extracted
+            </p>
+            <Button onClick={() => setDocumentPreviewOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
