@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
       children: aiData.children || [],
       sections: aiData.sections || [],
       fullOrderContent,
-      confidence: aiData.confidence || "medium",
+      confidence: "high" as const,
     };
 
     // ========================================================

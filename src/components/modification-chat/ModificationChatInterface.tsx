@@ -705,10 +705,7 @@ export function ModificationChatInterface({
                     <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-semibold text-green-800">
-                        Successfully extracted information!
-                      </p>
-                      <p className="text-xs text-green-600 mt-0.5">
-                        Confidence: {extractedData.confidence}
+                        Successfully extracted information from your court order!
                       </p>
                     </div>
                   </div>
@@ -1130,7 +1127,7 @@ export function ModificationChatInterface({
       if (message.content === "skip") return "Skipped — entering manually";
       try {
         const data = JSON.parse(message.content);
-        return `Uploaded court orders (${data.confidence} confidence)`;
+        return `Uploaded court orders`;
       } catch {
         return message.content;
       }
