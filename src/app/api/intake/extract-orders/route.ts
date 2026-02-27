@@ -20,115 +20,13 @@ function getAdminClient() {
 }
 
 // ============================================================
-// MECHANICAL PARAGRAPH SPLITTING — no AI, exact text preserved
-// ============================================================
-interface RawParagraph {
-  id: string;
-  text: string;
-  isHeader: boolean;
-}
-
-function splitIntoParagraphs(rawText: string): RawParagraph[] {
-  const paragraphs: RawParagraph[] = [];
-  const lines = rawText.split("\n");
-
-  // Patterns for section headers
-  const headerPatterns = [
-    /^(THE COURT (?:FINDS|ORDERS|FURTHER ORDERS|DECREES|FURTHER DECREES)):?\s*$/i,
-    /^(IT IS (?:ORDERED|FURTHER ORDERED|DECREED|FURTHER DECREED)):?\s*$/i,
-    /^(FINDINGS?(?:\s+OF\s+FACT)?):?\s*$/i,
-    /^(CONCLUSIONS?\s+OF\s+LAW):?\s*$/i,
-    /^(DECREE|ORDER|JUDGMENT):?\s*$/i,
-  ];
-
-  // Pattern for numbered paragraphs: "1.", "2.", "3.A", "6.B.", "IV.", etc.
-  const numberedPattern = /^(\d+(?:\.\s*[A-Za-z])?\.?)\s+(.+)/;
-  const romanPattern = /^((?:I{1,3}|IV|V|VI{0,3}|IX|X{0,3})\.)\s+(.+)/;
-  const letterPattern = /^([A-Z]\.)\s+(.+)/;
-
-  let currentParagraph: { id: string; lines: string[]; isHeader: boolean } | null = null;
-
-  function flushParagraph() {
-    if (currentParagraph && currentParagraph.lines.length > 0) {
-      const text = currentParagraph.lines.join(" ").replace(/\s+/g, " ").trim();
-      if (text.length > 0) {
-        paragraphs.push({
-          id: currentParagraph.id,
-          text,
-          isHeader: currentParagraph.isHeader,
-        });
-      }
-    }
-    currentParagraph = null;
-  }
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) {
-      // Blank line — might separate paragraphs
-      if (currentParagraph && !currentParagraph.isHeader) {
-        // Only flush if we have substantial content
-        if (currentParagraph.lines.join(" ").trim().length > 10) {
-          flushParagraph();
-        }
-      }
-      continue;
-    }
-
-    // Check for section headers
-    let isHeader = false;
-    for (const pattern of headerPatterns) {
-      if (pattern.test(line)) {
-        flushParagraph();
-        paragraphs.push({
-          id: `header-${paragraphs.length}`,
-          text: line,
-          isHeader: true,
-        });
-        isHeader = true;
-        break;
-      }
-    }
-    if (isHeader) continue;
-
-    // Check for numbered paragraph start
-    const numMatch = line.match(numberedPattern);
-    const romanMatch = line.match(romanPattern);
-    const letterMatch = line.match(letterPattern);
-    const match = numMatch || romanMatch || letterMatch;
-
-    if (match) {
-      flushParagraph();
-      const id = match[1].replace(/\.$/, "").trim();
-      currentParagraph = { id, lines: [match[2]], isHeader: false };
-      continue;
-    }
-
-    // Continuation of current paragraph
-    if (currentParagraph) {
-      currentParagraph.lines.push(line);
-    } else {
-      // Start a new unnumbered paragraph
-      currentParagraph = {
-        id: `p-${paragraphs.length}`,
-        lines: [line],
-        isHeader: false,
-      };
-    }
-  }
-
-  flushParagraph();
-  return paragraphs;
-}
-
-// ============================================================
 // AI PROMPT — Only metadata + section classification
 // ============================================================
-const EXTRACTION_PROMPT = `You are analyzing the text of an Arizona family court order. Extract metadata and identify which paragraphs relate to specific topics.
+const EXTRACTION_PROMPT = `You are analyzing the text of an Arizona family court order. Extract metadata and identify which block IDs relate to specific topics.
 
 You are given:
 1. The full text of the court order
-2. A list of paragraph IDs extracted from the document
+2. A list of block IDs with text previews
 
 Return ONLY valid JSON (no markdown, no code fences, no explanation):
 
@@ -143,8 +41,8 @@ Return ONLY valid JSON (no markdown, no code fences, no explanation):
   "children": [
     { "name": "child's full legal name", "dateOfBirth": "MM/DD/YYYY or null" }
   ],
-  "paragraphClassifications": {
-    "PARAGRAPH_ID": "legal_decision_making or parenting_time or child_support or property or spousal_maintenance or other"
+  "blockClassifications": {
+    "BLOCK_ID": "legal_decision_making or parenting_time or child_support or other"
   },
   "sections": [
     {
@@ -155,14 +53,14 @@ Return ONLY valid JSON (no markdown, no code fences, no explanation):
       "summary": "brief 1-2 sentence summary",
       "verbatimText": "exact verbatim text of this section from the order"
     }
-  ],
-  "confidence": "high or medium or low"
+  ]
 }
 
 RULES:
 - Return ONLY the JSON object. No other text.
 - Use null for any field you cannot determine.
-- In paragraphClassifications: map each paragraph ID to its topic. Use "other" for general/unrelated paragraphs.
+- In blockClassifications: map each block ID to its topic. Use "other" for general/unrelated blocks.
+- Only classify blocks that are clearly about legal_decision_making, parenting_time, or child_support. Everything else is "other".
 - SECTIONS: Only include sections about legal_decision_making, parenting_time, and child_support.
 - For verbatimText: copy the EXACT text from the provided content for each relevant section.`;
 
@@ -205,38 +103,78 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // ========================================================
-    // STEP 1: Extract raw text using pdf-parse
+    // STEP 1: Extract text PER PAGE using pdf-parse
     // ========================================================
-    let rawText: string | null = null;
+    interface PageText { num: number; text: string }
+    let pages: PageText[] = [];
+    let fullText = "";
+
     try {
       const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: new Uint8Array(buffer) });
       const textResult = await parser.getText();
-      rawText = textResult.text;
+      fullText = textResult.text;
+      pages = textResult.pages || [];
       await parser.destroy();
     } catch (parseError) {
       console.error("pdf-parse extraction failed:", parseError);
     }
 
-    if (!rawText || rawText.trim().length < 50) {
+    if (!fullText || fullText.trim().length < 50) {
       // pdf-parse failed or scanned PDF — fall back to GPT-4o direct reading
       return await handleDirectPdfExtraction(buffer, file.name, user.id);
     }
 
     // ========================================================
-    // STEP 2: Mechanically split into paragraphs (no AI)
+    // STEP 2: Split each page's text into blocks (simple: by blank lines)
     // ========================================================
-    const rawParagraphs = splitIntoParagraphs(rawText);
+    interface TextBlock {
+      id: string;
+      text: string;
+      pageNum: number;
+    }
 
-    // Build a summary of paragraph IDs for the AI
-    const paragraphSummary = rawParagraphs
-      .filter((p) => !p.isHeader)
-      .map((p) => `[${p.id}]: ${p.text.substring(0, 120)}...`)
-      .join("\n");
+    const blocks: TextBlock[] = [];
+
+    if (pages.length > 0) {
+      // Per-page splitting
+      for (const page of pages) {
+        const chunks = page.text
+          .split(/\n\s*\n/)
+          .map((c) => c.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
+          .filter((c) => c.length > 0);
+
+        for (const chunk of chunks) {
+          blocks.push({
+            id: `b-${blocks.length}`,
+            text: chunk,
+            pageNum: page.num,
+          });
+        }
+      }
+    } else {
+      // Fallback: no per-page info, split full text by blank lines
+      const chunks = fullText
+        .split(/\n\s*\n/)
+        .map((c) => c.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
+        .filter((c) => c.length > 0);
+
+      for (const chunk of chunks) {
+        blocks.push({
+          id: `b-${blocks.length}`,
+          text: chunk,
+          pageNum: 0,
+        });
+      }
+    }
 
     // ========================================================
     // STEP 3: Single AI call — metadata + classification
     // ========================================================
+    const blockSummary = blocks
+      .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`)
+      .join("\n");
+
     const openai = getOpenAI();
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -245,7 +183,7 @@ export async function POST(request: NextRequest) {
         { role: "system", content: EXTRACTION_PROMPT },
         {
           role: "user",
-          content: `Here is the full text of the court order:\n\n${rawText}\n\n---\n\nHere are the paragraph IDs extracted from the document:\n${paragraphSummary}`,
+          content: `Here is the full text of the court order:\n\n${fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
         },
       ],
     });
@@ -255,15 +193,16 @@ export async function POST(request: NextRequest) {
     const aiData = JSON.parse(aiJson);
 
     // ========================================================
-    // STEP 4: Build fullOrderContent from mechanical paragraphs + AI classifications
+    // STEP 4: Build fullOrderContent from blocks + AI classifications
     // ========================================================
-    const classifications: Record<string, string> = aiData.paragraphClassifications || {};
-    const fullOrderContent = rawParagraphs.map((p) => ({
-      paragraphId: p.isHeader ? "header" : p.id,
+    const classifications: Record<string, string> = aiData.blockClassifications || {};
+    const fullOrderContent = blocks.map((b) => ({
+      paragraphId: b.id,
       heading: null,
-      text: p.text,
-      sectionGroup: p.isHeader ? "other" : "orders",
-      type: classifications[p.id] || "other",
+      text: b.text,
+      sectionGroup: "orders" as const,
+      type: (classifications[b.id] || "other") as "legal_decision_making" | "parenting_time" | "child_support" | "property" | "spousal_maintenance" | "other",
+      pageNum: b.pageNum,
     }));
 
     // Build final extracted data
@@ -344,13 +283,13 @@ Return ONLY valid JSON (no markdown, no code fences):
     "verbatimText": "exact text"
   }],
   "fullOrderContent": [{
-    "paragraphId": "string or 'header'",
+    "paragraphId": "string",
     "heading": null,
     "text": "exact verbatim text",
-    "sectionGroup": "findings or orders or declarations or other",
+    "sectionGroup": "orders",
     "type": "legal_decision_making or parenting_time or child_support or property or spousal_maintenance or other"
   }],
-  "confidence": "high or medium or low"
+  "confidence": "high"
 }
 
 Extract EVERY paragraph in order. Copy text EXACTLY. Do not summarize. Do not skip paragraphs.`;

@@ -233,65 +233,28 @@ function ProposedModifiedOrder({
 
         {/* Render full order content — exact mirror with only modified sections changed */}
         {fullContent.map((block, idx) => {
-          // Section headers (e.g., "THE COURT FINDS:", "THE COURT ORDERS:")
-          if (block.paragraphId === 'header' || block.paragraphId.startsWith('header-')) {
-            return (
-              <View key={idx} style={styles.section} wrap={false}>
-                <Text style={styles.sectionTitle}>{block.text}</Text>
-              </View>
-            );
-          }
-
-          // Check if this is an unnumbered paragraph (id starts with "p-")
-          const isUnnumbered = block.paragraphId.startsWith('p-');
-
           // Check if this block should be replaced with modified text
           const modifiedText = getModifiedText(block, modification);
 
           if (modifiedText) {
-            // Modified section — show with strikethrough original + new text
-            if (isUnnumbered) {
-              return (
-                <View key={idx} wrap={false} style={{ marginBottom: 6 }}>
-                  <Text style={{ ...styles.paragraph, textDecoration: 'line-through', color: '#999', fontSize: 9 }}>
-                    {block.text}
-                  </Text>
-                  <Text style={{ ...styles.paragraph, fontWeight: 'bold' }}>
-                    {modifiedText}
-                  </Text>
-                </View>
-              );
-            }
+            // Modified section — show strikethrough original + bold new text
             return (
-              <View key={idx} wrap={false} style={{ marginBottom: 6 }}>
-                <View style={styles.numberedParagraph}>
-                  <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
-                  <Text style={{ ...styles.paragraphContent, textDecoration: 'line-through', color: '#999', fontSize: 9 }}>
-                    {block.text}
-                  </Text>
-                </View>
-                <View style={{ ...styles.numberedParagraph, marginTop: 2 }}>
-                  <Text style={styles.paragraphNumber}></Text>
-                  <Text style={{ ...styles.paragraphContent, fontWeight: 'bold' }}>
-                    {modifiedText}
-                  </Text>
-                </View>
+              <View key={idx} style={{ marginBottom: 8 }}>
+                <Text style={{ ...styles.paragraph, textDecoration: 'line-through', color: '#999', fontSize: 9 }}>
+                  {block.text}
+                </Text>
+                <Text style={{ ...styles.paragraph, fontWeight: 'bold', marginTop: 2 }}>
+                  {modifiedText}
+                </Text>
               </View>
             );
           }
 
-          // Render original paragraph exactly as-is
-          if (isUnnumbered) {
-            return (
-              <Text key={idx} style={styles.paragraph}>{block.text}</Text>
-            );
-          }
-
+          // Render original text block exactly as-is (NO wrap={false} — allow spanning pages)
           return (
-            <View key={idx} style={styles.numberedParagraph} wrap={false}>
-              <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
-              <Text style={styles.paragraphContent}>{block.text}</Text>
-            </View>
+            <Text key={idx} style={{ ...styles.paragraph, marginBottom: 4 }}>
+              {block.text}
+            </Text>
           );
         })}
 
