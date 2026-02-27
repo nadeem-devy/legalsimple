@@ -74,6 +74,7 @@ export interface OrderContentBlock {
   text: string;
   sectionGroup?: 'findings' | 'orders' | 'declarations' | 'other';
   type: 'legal_decision_making' | 'parenting_time' | 'child_support' | 'property' | 'spousal_maintenance' | 'other';
+  pageNum?: number;
 }
 
 // Data extracted from uploaded court orders via AI

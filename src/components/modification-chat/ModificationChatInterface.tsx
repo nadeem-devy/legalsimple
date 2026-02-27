@@ -1519,33 +1519,63 @@ export function ModificationChatInterface({
                   </div>
                 )}
 
-                {/* Document body — all extracted text blocks */}
-                <div className="px-8 py-6 space-y-0">
-                  {extractedData?.fullOrderContent?.map((block, idx) => {
-                    const sectionType = block.type;
-                    const isModifiable = sectionType === 'legal_decision_making' || sectionType === 'parenting_time' || sectionType === 'child_support';
-                    const typeLabel = sectionType === 'legal_decision_making' ? 'Legal Decision Making'
-                      : sectionType === 'parenting_time' ? 'Parenting Time'
-                      : sectionType === 'child_support' ? 'Child Support'
-                      : null;
+                {/* Document body — organized by page */}
+                <div className="divide-y divide-slate-200">
+                  {(() => {
+                    const content = extractedData?.fullOrderContent || [];
+                    // Group blocks by pageNum
+                    const pageGroups = new Map<number, typeof content>();
+                    for (const block of content) {
+                      const pg = block.pageNum || 0;
+                      if (!pageGroups.has(pg)) pageGroups.set(pg, []);
+                      pageGroups.get(pg)!.push(block);
+                    }
+                    const pageNums = [...pageGroups.keys()].sort((a, b) => a - b);
 
-                    return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "py-2 text-sm leading-relaxed text-slate-800",
-                          isModifiable && "bg-amber-50 border-l-4 border-amber-400 pl-4 pr-2 -ml-4 rounded-r my-2"
-                        )}
-                      >
-                        {isModifiable && typeLabel && (
-                          <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded mb-1">
-                            {typeLabel}
-                          </span>
-                        )}
-                        <p className="whitespace-pre-wrap">{block.text}</p>
-                      </div>
-                    );
-                  })}
+                    return pageNums.map((pageNum) => {
+                      const pageBlocks = pageGroups.get(pageNum) || [];
+                      return (
+                        <div key={pageNum} className="relative">
+                          {/* Page header */}
+                          {pageNum > 0 && (
+                            <div className="sticky top-0 bg-slate-100 px-8 py-1.5 border-b border-slate-200 z-10">
+                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                Page {pageNum}
+                              </span>
+                            </div>
+                          )}
+                          {/* Page content */}
+                          <div className="px-8 py-4 space-y-0 font-serif">
+                            {pageBlocks.map((block, idx) => {
+                              const sectionType = block.type;
+                              const isModifiable = sectionType === 'legal_decision_making' || sectionType === 'parenting_time' || sectionType === 'child_support';
+                              const typeLabel = sectionType === 'legal_decision_making' ? 'Legal Decision Making'
+                                : sectionType === 'parenting_time' ? 'Parenting Time'
+                                : sectionType === 'child_support' ? 'Child Support'
+                                : null;
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={cn(
+                                    "py-1.5 text-[13px] leading-relaxed text-slate-800",
+                                    isModifiable && "bg-amber-50 border-l-4 border-amber-400 pl-4 pr-2 -ml-4 rounded-r my-1.5"
+                                  )}
+                                >
+                                  {isModifiable && typeLabel && (
+                                    <span className="inline-block text-[10px] font-bold font-sans uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded mb-1">
+                                      {typeLabel}
+                                    </span>
+                                  )}
+                                  <p className="whitespace-pre-wrap">{block.text}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
@@ -1554,7 +1584,9 @@ export function ModificationChatInterface({
           <Separator />
           <div className="px-6 py-4 flex-shrink-0 flex items-center justify-between">
             <p className="text-xs text-slate-400">
-              {extractedData?.fullOrderContent?.length || 0} text blocks extracted
+              {extractedData?.fullOrderContent?.length || 0} text blocks across {
+                new Set((extractedData?.fullOrderContent || []).map((b) => b.pageNum || 0)).size
+              } pages
             </p>
             <Button onClick={() => setDocumentPreviewOpen(false)}>
               Close

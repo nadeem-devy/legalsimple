@@ -21,28 +21,99 @@ function getAdminClient() {
 
 // ============================================================
 // Extract text per page using pdfjs-dist legacy (no worker needed)
+// Uses position data to detect lines and paragraph breaks
 // ============================================================
+interface ExtractedLine {
+  text: string;
+  y: number;
+  fontSize: number;
+}
+
+interface ExtractedPage {
+  num: number;
+  lines: string[];
+  text: string;
+}
+
 async function extractPdfPages(
   buffer: Buffer
-): Promise<{ pages: { num: number; text: string }[]; fullText: string }> {
-  // Dynamic import — legacy build works in serverless without workers
+): Promise<{ pages: ExtractedPage[]; fullText: string }> {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
   const data = new Uint8Array(buffer);
   const doc = await pdfjsLib.getDocument({ data, useSystemFonts: true })
     .promise;
 
-  const pages: { num: number; text: string }[] = [];
+  const pages: ExtractedPage[] = [];
   const allText: string[] = [];
 
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .filter((item) => "str" in item)
-      .map((item) => (item as { str: string }).str)
-      .join(" ");
-    pages.push({ num: i, text: pageText });
+
+    // Group text items into lines using y-coordinate
+    const items = content.items.filter(
+      (item): item is typeof item & { str: string; transform: number[]; height: number } =>
+        "str" in item && "transform" in item
+    );
+
+    if (items.length === 0) {
+      pages.push({ num: i, lines: [], text: "" });
+      continue;
+    }
+
+    // Sort by y (descending = top to bottom) then x (left to right)
+    const sorted = [...items].sort((a, b) => {
+      const yDiff = b.transform[5] - a.transform[5]; // y descending (top first)
+      if (Math.abs(yDiff) > 2) return yDiff;
+      return a.transform[4] - b.transform[4]; // x ascending (left first)
+    });
+
+    // Group into lines — items within 3 units of y are same line
+    const rawLines: ExtractedLine[] = [];
+    let currentLineY = sorted[0].transform[5];
+    let currentLineText: string[] = [];
+    let currentFontSize = sorted[0].height || 12;
+
+    for (const item of sorted) {
+      const y = item.transform[5];
+      if (Math.abs(y - currentLineY) > 3) {
+        // New line
+        const lineText = currentLineText.join("").trim();
+        if (lineText) {
+          rawLines.push({ text: lineText, y: currentLineY, fontSize: currentFontSize });
+        }
+        currentLineY = y;
+        currentLineText = [item.str];
+        currentFontSize = item.height || 12;
+      } else {
+        currentLineText.push(item.str);
+      }
+    }
+    // Flush last line
+    const lastText = currentLineText.join("").trim();
+    if (lastText) {
+      rawLines.push({ text: lastText, y: currentLineY, fontSize: currentFontSize });
+    }
+
+    // Convert to string lines with paragraph breaks detected by larger gaps
+    const lines: string[] = [];
+    for (let j = 0; j < rawLines.length; j++) {
+      const line = rawLines[j];
+      if (j > 0) {
+        const prevY = rawLines[j - 1].y;
+        const gap = prevY - line.y; // gap between lines (y decreases going down)
+        const avgFontSize = (rawLines[j - 1].fontSize + line.fontSize) / 2;
+        // If gap is > 1.8x font size, treat as paragraph break
+        if (gap > avgFontSize * 1.8) {
+          lines.push(""); // Empty line = paragraph break
+        }
+      }
+      lines.push(line.text);
+    }
+
+    const pageText = lines.join("\n");
+    pages.push({ num: i, lines, text: pageText });
     allText.push(pageText);
   }
 
@@ -135,7 +206,7 @@ export async function POST(request: NextRequest) {
     // ========================================================
     // STEP 1: Extract text per page using pdfjs-dist (no worker)
     // ========================================================
-    let pdfData: { pages: { num: number; text: string }[]; fullText: string };
+    let pdfData: { pages: ExtractedPage[]; fullText: string };
     try {
       pdfData = await extractPdfPages(buffer);
     } catch (parseError) {
@@ -149,7 +220,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ========================================================
-    // STEP 2: Split each page's text into blocks by blank lines
+    // STEP 2: Split into blocks — each paragraph is a block
     // ========================================================
     interface TextBlock {
       id: string;
@@ -159,24 +230,28 @@ export async function POST(request: NextRequest) {
 
     const blocks: TextBlock[] = [];
     for (const page of pdfData.pages) {
-      // Split page text by double spaces or natural breaks
-      const chunks = page.text
-        .split(/\s{4,}/)
-        .map((c) => c.replace(/\s+/g, " ").trim())
-        .filter((c) => c.length > 0);
+      // Split page text by blank lines (paragraph breaks detected by position)
+      const paragraphs = page.text
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
+        .filter((p) => p.length > 0);
 
-      if (chunks.length === 0 && page.text.trim()) {
-        // Page has text but no natural breaks — use whole page as one block
-        blocks.push({
-          id: `b-${blocks.length}`,
-          text: page.text.replace(/\s+/g, " ").trim(),
-          pageNum: page.num,
-        });
+      if (paragraphs.length === 0 && page.text.trim()) {
+        // No paragraph breaks — use each line as a block
+        for (const line of page.lines) {
+          if (line.trim()) {
+            blocks.push({
+              id: `b-${blocks.length}`,
+              text: line.trim(),
+              pageNum: page.num,
+            });
+          }
+        }
       } else {
-        for (const chunk of chunks) {
+        for (const para of paragraphs) {
           blocks.push({
             id: `b-${blocks.length}`,
-            text: chunk,
+            text: para,
             pageNum: page.num,
           });
         }
