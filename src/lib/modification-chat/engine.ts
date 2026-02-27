@@ -421,9 +421,12 @@ function updateDataFromAnswer(
     case 'upload_orders': {
       if (answer && answer !== 'skip') {
         try {
-          const extracted = JSON.parse(answer) as ExtractedOrderData;
+          const parsed = JSON.parse(answer);
+          const { _storagePath, ...rest } = parsed;
+          const extracted = rest as ExtractedOrderData;
           data.hasUploadedOrders = true;
           data.extractedOrderData = extracted;
+          if (_storagePath) data.uploadedOrderPath = _storagePath;
           // Pre-fill case number
           if (extracted.caseNumber) data.caseNumber = extracted.caseNumber;
           // Pre-fill court name across all blocks

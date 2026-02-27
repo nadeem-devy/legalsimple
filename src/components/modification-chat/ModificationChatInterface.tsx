@@ -170,6 +170,7 @@ export function ModificationChatInterface({
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedOrderData | null>(null);
+  const [uploadedOrderPath, setUploadedOrderPath] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [referenceSheetOpen, setReferenceSheetOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -441,8 +442,9 @@ export function ModificationChatInterface({
         throw new Error(err.error || 'Failed to extract data from document');
       }
 
-      const { extractedData: data } = await response.json();
+      const { extractedData: data, storagePath } = await response.json();
       setExtractedData(data);
+      if (storagePath) setUploadedOrderPath(storagePath);
       setUploadState('success');
     } catch (error) {
       setUploadState('error');
@@ -456,14 +458,16 @@ export function ModificationChatInterface({
 
   const handleUploadConfirm = useCallback(() => {
     if (!extractedData) return;
-    // Pass extracted data as JSON string to the engine
+    // Pass extracted data + storage path as JSON string to the engine
+    const payload = { ...extractedData, _storagePath: uploadedOrderPath };
     setStateHistory((prev) => [...prev, chatState]);
-    const newState = processAnswer(chatState, JSON.stringify(extractedData));
+    const newState = processAnswer(chatState, JSON.stringify(payload));
     setCurrentInput('');
     setUploadState('idle');
     setExtractedData(null);
+    setUploadedOrderPath(null);
     setChatState(processCurrentQuestion(newState));
-  }, [extractedData, chatState]);
+  }, [extractedData, uploadedOrderPath, chatState]);
 
   const handleUploadSkip = useCallback(() => {
     setStateHistory((prev) => [...prev, chatState]);

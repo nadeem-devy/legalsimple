@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createRawClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
 function getOpenAI() {
@@ -8,7 +9,14 @@ function getOpenAI() {
   });
 }
 
-const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Your job is to extract the COMPLETE content of the court order as structured data.
+function getAdminClient() {
+  return createRawClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+const EXTRACTION_SYSTEM_PROMPT = `You are analyzing an Arizona family court order document. Extract key metadata and specific sections to help pre-fill a Petition to Modify form.
 
 Return ONLY valid JSON (no markdown, no code fences, no explanation):
 
@@ -30,16 +38,7 @@ Return ONLY valid JSON (no markdown, no code fences, no explanation):
       "paragraphNumber": "paragraph number as a string or null",
       "orderDate": "MM/DD/YYYY or null",
       "summary": "brief 1-2 sentence summary",
-      "verbatimText": "exact text of this section"
-    }
-  ],
-  "fullOrderContent": [
-    {
-      "paragraphId": "the paragraph number/letter as written (e.g., '1', '6.B', 'E')",
-      "heading": "bold heading text if any (e.g., 'CHILD CUSTODY', 'CHILD SUPPORT') or null",
-      "text": "the EXACT word-for-word verbatim text of this paragraph/section including all sub-content",
-      "sectionGroup": "findings or orders or declarations or other",
-      "type": "legal_decision_making or parenting_time or child_support or property or spousal_maintenance or other"
+      "verbatimText": "exact verbatim text of this specific section from the order"
     }
   ],
   "confidence": "high or medium or low"
@@ -48,19 +47,9 @@ Return ONLY valid JSON (no markdown, no code fences, no explanation):
 CRITICAL RULES:
 - Return ONLY the JSON object. No other text.
 - Use null for any field you cannot determine from the document.
-
-SECTIONS array: Only include sections related to legal decision making, parenting time, and child support. This is used for pre-filling form fields.
-
-FULL ORDER CONTENT array - THIS IS THE MOST IMPORTANT PART:
-- Extract EVERY paragraph from the court order in document order.
-- Include ALL content from the "THE COURT FINDS:", "THE COURT FURTHER FINDS THAT:", "THE COURT ORDERS:" sections and any similar sections.
-- Copy each paragraph EXACTLY word-for-word as written in the document.
-- Include sub-sections as separate entries (e.g., if paragraph 6 has sub-sections A, B, C, include "6" as the main entry and "6.A", "6.B", "6.C" as separate entries).
-- For "sectionGroup": use "findings" for "THE COURT FINDS" paragraphs, "orders" for "THE COURT ORDERS" paragraphs, "declarations" for declarations/waivers, "other" for everything else.
-- For "type": classify as "legal_decision_making" (custody), "parenting_time" (visitation schedule), "child_support", "property", "spousal_maintenance", or "other".
-- Include section group headers (like "THE COURT FINDS:", "THE COURT ORDERS:") as separate entries with paragraphId "header" and the header text.
-- Do NOT include exhibits, signature pages, or oath/affirmation pages.
-- The goal is to capture the complete operative court order so it can be reproduced with specific paragraphs modified.`;
+- SECTIONS array: Only include sections related to legal_decision_making, parenting_time, and child_support. These are used for pre-filling form fields.
+- For verbatimText: copy the EXACT word-for-word text of each relevant section. This will be quoted in the petition.
+- Do NOT attempt to extract the full order content. Only extract the metadata and specific sections listed above.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,7 +98,7 @@ export async function POST(request: NextRequest) {
     // Send PDF directly to OpenAI GPT-4o for extraction
     const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 16384,
+      max_tokens: 4096,
       messages: [
         {
           role: "system",
@@ -156,7 +145,31 @@ export async function POST(request: NextRequest) {
 
     const extractedData = JSON.parse(jsonText);
 
-    return NextResponse.json({ extractedData });
+    // Store the original PDF in Supabase storage for reference
+    let storagePath: string | null = null;
+    try {
+      const adminClient = getAdminClient();
+      await adminClient.storage.createBucket("court-orders", {
+        public: false,
+        fileSizeLimit: 10 * 1024 * 1024,
+      });
+
+      const timestamp = Date.now();
+      const safeName = (file.name || "court-order.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+      storagePath = `${user.id}/${timestamp}-${safeName}`;
+
+      await adminClient.storage
+        .from("court-orders")
+        .upload(storagePath, buffer, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+    } catch (storageError) {
+      // Non-critical — extraction still succeeds even if storage fails
+      console.error("PDF storage error:", storageError);
+    }
+
+    return NextResponse.json({ extractedData, storagePath });
   } catch (error) {
     console.error("Order extraction error:", error);
 
