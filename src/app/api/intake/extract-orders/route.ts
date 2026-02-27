@@ -20,6 +20,36 @@ function getAdminClient() {
 }
 
 // ============================================================
+// Extract text per page using pdfjs-dist legacy (no worker needed)
+// ============================================================
+async function extractPdfPages(
+  buffer: Buffer
+): Promise<{ pages: { num: number; text: string }[]; fullText: string }> {
+  // Dynamic import — legacy build works in serverless without workers
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  const data = new Uint8Array(buffer);
+  const doc = await pdfjsLib.getDocument({ data, useSystemFonts: true })
+    .promise;
+
+  const pages: { num: number; text: string }[] = [];
+  const allText: string[] = [];
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .filter((item) => "str" in item)
+      .map((item) => (item as { str: string }).str)
+      .join(" ");
+    pages.push({ num: i, text: pageText });
+    allText.push(pageText);
+  }
+
+  return { pages, fullText: allText.join("\n\n") };
+}
+
+// ============================================================
 // AI PROMPT — Only metadata + section classification
 // ============================================================
 const EXTRACTION_PROMPT = `You are analyzing the text of an Arizona family court order. Extract metadata and identify which block IDs relate to specific topics.
@@ -103,30 +133,23 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // ========================================================
-    // STEP 1: Extract text PER PAGE using pdf-parse
+    // STEP 1: Extract text per page using pdfjs-dist (no worker)
     // ========================================================
-    interface PageText { num: number; text: string }
-    let pages: PageText[] = [];
-    let fullText = "";
-
+    let pdfData: { pages: { num: number; text: string }[]; fullText: string };
     try {
-      const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse({ data: new Uint8Array(buffer) });
-      const textResult = await parser.getText();
-      fullText = textResult.text;
-      pages = textResult.pages || [];
-      await parser.destroy();
+      pdfData = await extractPdfPages(buffer);
     } catch (parseError) {
-      console.error("pdf-parse extraction failed:", parseError);
+      console.error("pdfjs-dist extraction failed:", parseError);
+      // Fallback for scanned/image PDFs
+      return await handleDirectPdfExtraction(buffer, file.name, user.id);
     }
 
-    if (!fullText || fullText.trim().length < 50) {
-      // pdf-parse failed or scanned PDF — fall back to GPT-4o direct reading
+    if (!pdfData.fullText || pdfData.fullText.trim().length < 50) {
       return await handleDirectPdfExtraction(buffer, file.name, user.id);
     }
 
     // ========================================================
-    // STEP 2: Split each page's text into blocks (simple: by blank lines)
+    // STEP 2: Split each page's text into blocks by blank lines
     // ========================================================
     interface TextBlock {
       id: string;
@@ -135,15 +158,21 @@ export async function POST(request: NextRequest) {
     }
 
     const blocks: TextBlock[] = [];
+    for (const page of pdfData.pages) {
+      // Split page text by double spaces or natural breaks
+      const chunks = page.text
+        .split(/\s{4,}/)
+        .map((c) => c.replace(/\s+/g, " ").trim())
+        .filter((c) => c.length > 0);
 
-    if (pages.length > 0) {
-      // Per-page splitting
-      for (const page of pages) {
-        const chunks = page.text
-          .split(/\n\s*\n/)
-          .map((c) => c.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
-          .filter((c) => c.length > 0);
-
+      if (chunks.length === 0 && page.text.trim()) {
+        // Page has text but no natural breaks — use whole page as one block
+        blocks.push({
+          id: `b-${blocks.length}`,
+          text: page.text.replace(/\s+/g, " ").trim(),
+          pageNum: page.num,
+        });
+      } else {
         for (const chunk of chunks) {
           blocks.push({
             id: `b-${blocks.length}`,
@@ -152,27 +181,16 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-    } else {
-      // Fallback: no per-page info, split full text by blank lines
-      const chunks = fullText
-        .split(/\n\s*\n/)
-        .map((c) => c.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
-        .filter((c) => c.length > 0);
-
-      for (const chunk of chunks) {
-        blocks.push({
-          id: `b-${blocks.length}`,
-          text: chunk,
-          pageNum: 0,
-        });
-      }
     }
 
     // ========================================================
     // STEP 3: Single AI call — metadata + classification
     // ========================================================
     const blockSummary = blocks
-      .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`)
+      .map(
+        (b) =>
+          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`
+      )
       .join("\n");
 
     const openai = getOpenAI();
@@ -183,7 +201,7 @@ export async function POST(request: NextRequest) {
         { role: "system", content: EXTRACTION_PROMPT },
         {
           role: "user",
-          content: `Here is the full text of the court order:\n\n${fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
+          content: `Here is the full text of the court order:\n\n${pdfData.fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
         },
       ],
     });
@@ -195,17 +213,23 @@ export async function POST(request: NextRequest) {
     // ========================================================
     // STEP 4: Build fullOrderContent from blocks + AI classifications
     // ========================================================
-    const classifications: Record<string, string> = aiData.blockClassifications || {};
+    const classifications: Record<string, string> =
+      aiData.blockClassifications || {};
     const fullOrderContent = blocks.map((b) => ({
       paragraphId: b.id,
       heading: null,
       text: b.text,
       sectionGroup: "orders" as const,
-      type: (classifications[b.id] || "other") as "legal_decision_making" | "parenting_time" | "child_support" | "property" | "spousal_maintenance" | "other",
+      type: (classifications[b.id] || "other") as
+        | "legal_decision_making"
+        | "parenting_time"
+        | "child_support"
+        | "property"
+        | "spousal_maintenance"
+        | "other",
       pageNum: b.pageNum,
     }));
 
-    // Build final extracted data
     const extractedData = {
       caseNumber: aiData.caseNumber,
       petitionerName: aiData.petitionerName,

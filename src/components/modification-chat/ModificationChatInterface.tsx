@@ -468,6 +468,10 @@ export function ModificationChatInterface({
       setExtractedData(data);
       if (storagePath) setUploadedOrderPath(storagePath);
       setUploadState('success');
+      // Auto-open document preview if content was extracted
+      if (data?.fullOrderContent?.length > 0) {
+        setDocumentPreviewOpen(true);
+      }
     } catch (error) {
       setUploadState('error');
       setUploadError(
