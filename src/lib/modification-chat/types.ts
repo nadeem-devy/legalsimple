@@ -67,6 +67,15 @@ export interface ChildInfo {
   dateOfBirth: string;
 }
 
+// A single paragraph/section from the full court order
+export interface OrderContentBlock {
+  paragraphId: string;
+  heading?: string;
+  text: string;
+  sectionGroup: 'findings' | 'orders' | 'declarations' | 'other';
+  type: 'legal_decision_making' | 'parenting_time' | 'child_support' | 'property' | 'spousal_maintenance' | 'other';
+}
+
 // Data extracted from uploaded court orders via AI
 export interface ExtractedOrderData {
   caseNumber?: string;
@@ -85,6 +94,7 @@ export interface ExtractedOrderData {
     summary?: string;
     verbatimText?: string;
   }>;
+  fullOrderContent?: OrderContentBlock[];
   confidence: 'high' | 'medium' | 'low';
 }
 

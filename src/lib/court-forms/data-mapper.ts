@@ -4,7 +4,7 @@
 import type { DivorceChatData, HomeProperty, RetirementInfo, VehicleInfo } from '@/lib/divorce-chat/types';
 import type { DivorceWithChildrenChatData, ChildInfo, HolidaySchedule, BreakSchedule } from '@/lib/divorce-with-children-chat/types';
 import type { PaternityChatData, PriorCourtCase, CustodyClaimant } from '@/lib/paternity-chat/types';
-import type { ModificationChatData } from '@/lib/modification-chat/types';
+import type { ModificationChatData, OrderContentBlock } from '@/lib/modification-chat/types';
 
 // Normalized PDF data structure
 export interface NormalizedPDFData {
@@ -254,6 +254,7 @@ export interface NormalizedPDFData {
     orderTitle?: string;
     judgeName?: string;
     uploadedOrderPath?: string;
+    fullOrderContent?: OrderContentBlock[];
     // Legal Decision Making
     ldm?: {
       orderDate: string;
@@ -832,6 +833,7 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
       orderTitle: data.extractedOrderData?.orderTitle,
       judgeName: data.extractedOrderData?.judgeName,
       uploadedOrderPath: data.uploadedOrderPath,
+      fullOrderContent: data.extractedOrderData?.fullOrderContent,
 
       ldm: modificationsSelected.includes('legal_decision_making') ? {
         orderDate: data.ldm_orderDate || '',
