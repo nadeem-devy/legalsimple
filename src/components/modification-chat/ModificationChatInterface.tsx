@@ -464,13 +464,19 @@ export function ModificationChatInterface({
       } catch {
         throw new Error('Server returned an invalid response. Please try again.');
       }
-      const { extractedData: data, storagePath } = result;
+      const { extractedData: data, storagePath, _debug } = result;
+      if (_debug) {
+        console.log('[extract-orders] Debug:', _debug);
+      }
       setExtractedData(data);
       if (storagePath) setUploadedOrderPath(storagePath);
       setUploadState('success');
       // Auto-open document preview if content was extracted
       if (data?.fullOrderContent?.length > 0) {
+        console.log(`[extract-orders] Got ${data.fullOrderContent.length} content blocks`);
         setDocumentPreviewOpen(true);
+      } else {
+        console.warn('[extract-orders] No fullOrderContent in response:', Object.keys(data || {}));
       }
     } catch (error) {
       setUploadState('error');

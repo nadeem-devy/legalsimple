@@ -21,18 +21,13 @@ function getAdminClient() {
 
 // ============================================================
 // Extract text per page using pdfjs-dist legacy (no worker needed)
-// Uses position data to detect lines and paragraph breaks
+// Each line of text becomes its own entry — maximum fidelity
 // ============================================================
-interface ExtractedLine {
-  text: string;
-  y: number;
-  fontSize: number;
-}
-
 interface ExtractedPage {
   num: number;
   lines: string[];
   text: string;
+  itemCount: number;
 }
 
 async function extractPdfPages(
@@ -45,79 +40,95 @@ async function extractPdfPages(
     .promise;
 
   const pages: ExtractedPage[] = [];
-  const allText: string[] = [];
 
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
 
-    // Group text items into lines using y-coordinate
+    // Filter to actual text items
     const items = content.items.filter(
-      (item): item is typeof item & { str: string; transform: number[]; height: number } =>
+      (item): item is typeof item & { str: string; transform: number[]; width: number; height: number } =>
         "str" in item && "transform" in item
     );
 
     if (items.length === 0) {
-      pages.push({ num: i, lines: [], text: "" });
+      pages.push({ num: i, lines: [], text: "", itemCount: 0 });
       continue;
     }
 
-    // Sort by y (descending = top to bottom) then x (left to right)
+    // Sort by y descending (top first), then x ascending (left first)
     const sorted = [...items].sort((a, b) => {
-      const yDiff = b.transform[5] - a.transform[5]; // y descending (top first)
-      if (Math.abs(yDiff) > 2) return yDiff;
-      return a.transform[4] - b.transform[4]; // x ascending (left first)
+      const yA = a.transform[5];
+      const yB = b.transform[5];
+      // Use a small threshold for "same line" detection during sort
+      if (Math.abs(yA - yB) > 1.5) return yB - yA; // higher y = higher on page
+      return a.transform[4] - b.transform[4]; // left to right
     });
 
-    // Group into lines — items within 3 units of y are same line
-    const rawLines: ExtractedLine[] = [];
-    let currentLineY = sorted[0].transform[5];
-    let currentLineText: string[] = [];
-    let currentFontSize = sorted[0].height || 12;
+    // Group items into lines by y-coordinate proximity
+    // Two items are on the same line if their y-coords are within 2 units
+    const lines: string[] = [];
+    let lineItems: typeof sorted = [sorted[0]];
 
-    for (const item of sorted) {
-      const y = item.transform[5];
-      if (Math.abs(y - currentLineY) > 3) {
-        // New line
-        const lineText = currentLineText.join("").trim();
-        if (lineText) {
-          rawLines.push({ text: lineText, y: currentLineY, fontSize: currentFontSize });
-        }
-        currentLineY = y;
-        currentLineText = [item.str];
-        currentFontSize = item.height || 12;
+    for (let j = 1; j < sorted.length; j++) {
+      const prev = lineItems[lineItems.length - 1];
+      const curr = sorted[j];
+      const yDiff = Math.abs(curr.transform[5] - prev.transform[5]);
+
+      if (yDiff <= 2) {
+        // Same line
+        lineItems.push(curr);
       } else {
-        currentLineText.push(item.str);
+        // Flush current line
+        // Sort line items by x to ensure left-to-right order
+        lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
+        const lineText = buildLineText(lineItems);
+        if (lineText.trim()) {
+          lines.push(lineText.trim());
+        }
+        lineItems = [curr];
       }
     }
     // Flush last line
-    const lastText = currentLineText.join("").trim();
-    if (lastText) {
-      rawLines.push({ text: lastText, y: currentLineY, fontSize: currentFontSize });
-    }
-
-    // Convert to string lines with paragraph breaks detected by larger gaps
-    const lines: string[] = [];
-    for (let j = 0; j < rawLines.length; j++) {
-      const line = rawLines[j];
-      if (j > 0) {
-        const prevY = rawLines[j - 1].y;
-        const gap = prevY - line.y; // gap between lines (y decreases going down)
-        const avgFontSize = (rawLines[j - 1].fontSize + line.fontSize) / 2;
-        // If gap is > 1.8x font size, treat as paragraph break
-        if (gap > avgFontSize * 1.8) {
-          lines.push(""); // Empty line = paragraph break
-        }
+    if (lineItems.length > 0) {
+      lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
+      const lineText = buildLineText(lineItems);
+      if (lineText.trim()) {
+        lines.push(lineText.trim());
       }
-      lines.push(line.text);
     }
 
-    const pageText = lines.join("\n");
-    pages.push({ num: i, lines, text: pageText });
-    allText.push(pageText);
+    const text = lines.join("\n");
+    pages.push({ num: i, lines, text, itemCount: items.length });
   }
 
-  return { pages, fullText: allText.join("\n\n") };
+  const fullText = pages.map((p) => p.text).join("\n\n");
+  return { pages, fullText };
+}
+
+// Build line text from sorted items, inserting spaces where needed
+function buildLineText(
+  items: Array<{ str: string; transform: number[]; width: number }>
+): string {
+  if (items.length === 0) return "";
+  let result = items[0].str;
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const curr = items[i];
+    // Check gap between end of previous item and start of current
+    const prevEnd = prev.transform[4] + (prev.width || 0);
+    const currStart = curr.transform[4];
+    const gap = currStart - prevEnd;
+
+    // If there's a visible gap and the previous item doesn't end with space
+    // and current doesn't start with space, insert a space
+    if (gap > 1 && !result.endsWith(" ") && !curr.str.startsWith(" ")) {
+      result += " ";
+    }
+    result += curr.str;
+  }
+  return result;
 }
 
 // ============================================================
@@ -215,12 +226,26 @@ export async function POST(request: NextRequest) {
       return await handleDirectPdfExtraction(buffer, file.name, user.id);
     }
 
-    if (!pdfData.fullText || pdfData.fullText.trim().length < 50) {
+    // Check extraction quality — if too little text, fall back to direct PDF approach
+    const totalLines = pdfData.pages.reduce((sum, p) => sum + p.lines.length, 0);
+    const avgLinesPerPage = totalLines / Math.max(pdfData.pages.length, 1);
+    console.log(
+      `[extract-orders] Extraction check: ${pdfData.fullText.length} chars, ` +
+      `${totalLines} lines, ${avgLinesPerPage.toFixed(1)} avg lines/page, ` +
+      `${pdfData.pages.length} pages`
+    );
+
+    if (
+      !pdfData.fullText ||
+      pdfData.fullText.trim().length < 50 ||
+      (pdfData.pages.length > 2 && avgLinesPerPage < 3)
+    ) {
+      console.log("[extract-orders] Text extraction insufficient, using direct PDF approach");
       return await handleDirectPdfExtraction(buffer, file.name, user.id);
     }
 
     // ========================================================
-    // STEP 2: Split into blocks — each paragraph is a block
+    // STEP 2: Each line becomes a block — maximum fidelity
     // ========================================================
     interface TextBlock {
       id: string;
@@ -230,33 +255,23 @@ export async function POST(request: NextRequest) {
 
     const blocks: TextBlock[] = [];
     for (const page of pdfData.pages) {
-      // Split page text by blank lines (paragraph breaks detected by position)
-      const paragraphs = page.text
-        .split(/\n\s*\n/)
-        .map((p) => p.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
-        .filter((p) => p.length > 0);
-
-      if (paragraphs.length === 0 && page.text.trim()) {
-        // No paragraph breaks — use each line as a block
-        for (const line of page.lines) {
-          if (line.trim()) {
-            blocks.push({
-              id: `b-${blocks.length}`,
-              text: line.trim(),
-              pageNum: page.num,
-            });
-          }
-        }
-      } else {
-        for (const para of paragraphs) {
+      for (const line of page.lines) {
+        if (line.trim()) {
           blocks.push({
             id: `b-${blocks.length}`,
-            text: para,
+            text: line.trim(),
             pageNum: page.num,
           });
         }
       }
     }
+
+    console.log(
+      `[extract-orders] PDF: ${pdfData.pages.length} pages, ` +
+      `${blocks.length} blocks, ` +
+      `${pdfData.fullText.length} chars total. ` +
+      `Items per page: ${pdfData.pages.map((p) => p.itemCount).join(",")}`
+    );
 
     // ========================================================
     // STEP 3: Single AI call — metadata + classification
@@ -271,7 +286,7 @@ export async function POST(request: NextRequest) {
     const openai = getOpenAI();
     const aiResponse = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
         {
@@ -324,7 +339,22 @@ export async function POST(request: NextRequest) {
     // ========================================================
     const storagePath = await storePdf(buffer, file.name, user.id);
 
-    return NextResponse.json({ extractedData, storagePath });
+    console.log(
+      `[extract-orders] Result: ${fullOrderContent.length} content blocks, ` +
+      `${pdfData.pages.length} pages`
+    );
+
+    return NextResponse.json({
+      extractedData,
+      storagePath,
+      _debug: {
+        totalPages: pdfData.pages.length,
+        totalBlocks: blocks.length,
+        totalChars: pdfData.fullText.length,
+        itemsPerPage: pdfData.pages.map((p) => p.itemCount),
+        linesPerPage: pdfData.pages.map((p) => p.lines.length),
+      },
+    });
   } catch (error) {
     console.error("Order extraction error:", error);
 
