@@ -67,12 +67,12 @@ export interface ChildInfo {
   dateOfBirth: string;
 }
 
-// A single paragraph/section from the full court order
+// A single paragraph/section from the full court order (mechanically extracted)
 export interface OrderContentBlock {
   paragraphId: string;
-  heading?: string;
+  heading?: string | null;
   text: string;
-  sectionGroup: 'findings' | 'orders' | 'declarations' | 'other';
+  sectionGroup?: 'findings' | 'orders' | 'declarations' | 'other';
   type: 'legal_decision_making' | 'parenting_time' | 'child_support' | 'property' | 'spousal_maintenance' | 'other';
 }
 

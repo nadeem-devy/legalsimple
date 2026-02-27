@@ -135,15 +135,13 @@ function getModifiedText(
   const mods = modification.modificationsSelected;
 
   if (block.type === 'legal_decision_making' && mods.includes('legal_decision_making') && modification.ldm) {
-    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
     const ldmType = formatLdmModificationType(modification.ldm.modificationType, modification.role, 'request');
-    return `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}The Court orders ${ldmType}. ${filingParty} requests this modification because: ${modification.ldm.whyChange || '___'}.`;
+    return `[PROPOSED MODIFICATION] The Court orders ${ldmType}. Reason for modification: ${modification.ldm.whyChange || '___'}.`;
   }
 
   if (block.type === 'parenting_time' && mods.includes('parenting_time') && modification.pt) {
-    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
     const schedule = formatPtSchedule(modification.pt.newSchedule);
-    let text = `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}The Court orders ${schedule}. ${filingParty} requests this modification because: ${modification.pt.whyChange || '___'}.`;
+    let text = `[PROPOSED MODIFICATION] The Court orders ${schedule}. Reason for modification: ${modification.pt.whyChange || '___'}.`;
     if (modification.pt.supervised) {
       text += ` Parenting time shall be supervised${modification.pt.supervisedReason ? ` because: ${modification.pt.supervisedReason}` : ''}.`;
     }
@@ -151,8 +149,7 @@ function getModifiedText(
   }
 
   if (block.type === 'child_support' && mods.includes('child_support') && modification.cs) {
-    const filingParty = modification.role === 'petitioner' ? 'Petitioner' : 'Respondent';
-    return `[MODIFIED] ${block.heading ? block.heading + ': ' : ''}Child support shall be recalculated and paid in accordance with the Arizona Child Support Guidelines pursuant to A.R.S. §25-320. ${filingParty} requests this modification because: ${modification.cs.whyChange || '___'}.`;
+    return `[PROPOSED MODIFICATION] Child support shall be recalculated and paid in accordance with the Arizona Child Support Guidelines pursuant to A.R.S. §25-320. Reason for modification: ${modification.cs.whyChange || '___'}.`;
   }
 
   return null;
@@ -234,10 +231,10 @@ function ProposedModifiedOrder({
           </View>
         </View>
 
-        {/* Render full order content — replace modified sections */}
+        {/* Render full order content — exact mirror with only modified sections changed */}
         {fullContent.map((block, idx) => {
-          // Section group headers (e.g., "THE COURT FINDS:", "THE COURT ORDERS:")
-          if (block.paragraphId === 'header') {
+          // Section headers (e.g., "THE COURT FINDS:", "THE COURT ORDERS:")
+          if (block.paragraphId === 'header' || block.paragraphId.startsWith('header-')) {
             return (
               <View key={idx} style={styles.section} wrap={false}>
                 <Text style={styles.sectionTitle}>{block.text}</Text>
@@ -245,35 +242,55 @@ function ProposedModifiedOrder({
             );
           }
 
+          // Check if this is an unnumbered paragraph (id starts with "p-")
+          const isUnnumbered = block.paragraphId.startsWith('p-');
+
           // Check if this block should be replaced with modified text
           const modifiedText = getModifiedText(block, modification);
 
           if (modifiedText) {
+            // Modified section — show with strikethrough original + new text
+            if (isUnnumbered) {
+              return (
+                <View key={idx} wrap={false} style={{ marginBottom: 6 }}>
+                  <Text style={{ ...styles.paragraph, textDecoration: 'line-through', color: '#999', fontSize: 9 }}>
+                    {block.text}
+                  </Text>
+                  <Text style={{ ...styles.paragraph, fontWeight: 'bold' }}>
+                    {modifiedText}
+                  </Text>
+                </View>
+              );
+            }
             return (
-              <View key={idx} style={styles.numberedParagraph} wrap={false}>
-                <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
-                <Text style={styles.paragraphContent}>
-                  <Text style={{ fontWeight: 'bold' }}>{block.heading ? block.heading + '.  ' : ''}</Text>
-                  {modifiedText}
-                </Text>
+              <View key={idx} wrap={false} style={{ marginBottom: 6 }}>
+                <View style={styles.numberedParagraph}>
+                  <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
+                  <Text style={{ ...styles.paragraphContent, textDecoration: 'line-through', color: '#999', fontSize: 9 }}>
+                    {block.text}
+                  </Text>
+                </View>
+                <View style={{ ...styles.numberedParagraph, marginTop: 2 }}>
+                  <Text style={styles.paragraphNumber}></Text>
+                  <Text style={{ ...styles.paragraphContent, fontWeight: 'bold' }}>
+                    {modifiedText}
+                  </Text>
+                </View>
               </View>
             );
           }
 
-          // Render original paragraph unchanged
+          // Render original paragraph exactly as-is
+          if (isUnnumbered) {
+            return (
+              <Text key={idx} style={styles.paragraph}>{block.text}</Text>
+            );
+          }
+
           return (
             <View key={idx} style={styles.numberedParagraph} wrap={false}>
               <Text style={styles.paragraphNumber}>{block.paragraphId}.</Text>
-              <Text style={styles.paragraphContent}>
-                {block.heading ? (
-                  <>
-                    <Text style={{ fontWeight: 'bold' }}>{block.heading}.  </Text>
-                    {block.text}
-                  </>
-                ) : (
-                  block.text
-                )}
-              </Text>
+              <Text style={styles.paragraphContent}>{block.text}</Text>
             </View>
           );
         })}

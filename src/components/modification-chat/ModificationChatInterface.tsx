@@ -438,11 +438,23 @@ export function ModificationChatInterface({
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to extract data from document');
+        let errorMessage = 'Failed to extract data from document';
+        try {
+          const err = await response.json();
+          errorMessage = err.error || errorMessage;
+        } catch {
+          // Server returned non-JSON error (e.g. HTML error page)
+        }
+        throw new Error(errorMessage);
       }
 
-      const { extractedData: data, storagePath } = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('Server returned an invalid response. Please try again.');
+      }
+      const { extractedData: data, storagePath } = result;
       setExtractedData(data);
       if (storagePath) setUploadedOrderPath(storagePath);
       setUploadState('success');
