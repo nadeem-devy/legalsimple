@@ -12,6 +12,13 @@ function getOpenAI() {
   });
 }
 
+function getMistral() {
+  return new OpenAI({
+    apiKey: process.env.MISTRAL_API_KEY!,
+    baseURL: "https://api.mistral.ai/v1",
+  });
+}
+
 function getAdminClient() {
   return createRawClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -318,9 +325,9 @@ export async function POST(request: NextRequest) {
       ? pdfData.fullText.substring(0, 80000) + "\n\n[...truncated for processing...]"
       : pdfData.fullText;
 
-    const openai = getOpenAI();
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+    const mistral = getMistral();
+    const aiResponse = await mistral.chat.completions.create({
+      model: "mistral-small-latest",
       max_tokens: 8192,
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
@@ -549,8 +556,9 @@ Rules:
     .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 200)}${b.text.length > 200 ? "..." : ""}`)
     .join("\n");
 
-  const aiResponse = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
+  const mistral = getMistral();
+  const aiResponse = await mistral.chat.completions.create({
+    model: "mistral-small-latest",
     max_tokens: 8192,
     messages: [
       { role: "system", content: EXTRACTION_PROMPT },
