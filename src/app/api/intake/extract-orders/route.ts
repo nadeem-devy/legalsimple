@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
 
     const openai = getOpenAI();
     const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1-mini",
       max_tokens: 8192,
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
@@ -480,10 +480,10 @@ Rules:
 - Do NOT wrap in code fences or JSON
 - Just output the raw text, page by page`;
 
-  console.log("[extract-orders] Fallback: extracting text via GPT-4o vision...");
+  console.log("[extract-orders] Fallback: extracting text via GPT-4.1-mini vision...");
 
   const textResponse = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-4.1-mini",
     max_tokens: 16384,
     messages: [
       { role: "system", content: textExtractionPrompt },
@@ -550,7 +550,7 @@ Rules:
     .join("\n");
 
   const aiResponse = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-4.1-mini",
     max_tokens: 8192,
     messages: [
       { role: "system", content: EXTRACTION_PROMPT },
