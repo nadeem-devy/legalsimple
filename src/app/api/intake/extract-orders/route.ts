@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createRawClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
 
-// Allow up to 120 seconds for PDF extraction + AI processing (large PDFs need more time)
+// Allow up to 120 seconds for OCR + AI processing
 export const maxDuration = 120;
 
-function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  });
-}
-
-function getMistral() {
-  return new OpenAI({
-    apiKey: process.env.MISTRAL_API_KEY!,
-    baseURL: "https://api.mistral.ai/v1",
-  });
-}
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY!;
+const MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr";
+const MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions";
 
 function getAdminClient() {
   return createRawClient(
@@ -27,184 +17,85 @@ function getAdminClient() {
 }
 
 // ============================================================
-// Extract text per page using pdfjs-dist legacy (no worker needed)
-// Each line of text becomes its own entry — maximum fidelity
+// Mistral OCR 3 — extract text from PDF (handles scanned PDFs too)
 // ============================================================
-interface ExtractedPage {
-  num: number;
-  lines: string[];
-  text: string;
-  itemCount: number;
+interface OcrPage {
+  index: number;
+  markdown: string;
 }
 
-async function extractPdfPages(
-  buffer: Buffer
-): Promise<{ pages: ExtractedPage[]; fullText: string }> {
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+async function extractWithMistralOcr(buffer: Buffer): Promise<OcrPage[]> {
+  const base64 = buffer.toString("base64");
+  const dataUrl = `data:application/pdf;base64,${base64}`;
 
-  const data = new Uint8Array(buffer);
-  const doc = await pdfjsLib.getDocument({ data, useSystemFonts: true })
-    .promise;
+  const resp = await fetch(MISTRAL_OCR_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${MISTRAL_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "mistral-ocr-latest",
+      document: {
+        type: "document_url",
+        document_url: dataUrl,
+      },
+      include_image_base64: false,
+    }),
+  });
 
-  const pages: ExtractedPage[] = [];
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-
-    // Filter to actual text items
-    const items = content.items.filter(
-      (item): item is typeof item & { str: string; transform: number[]; width: number; height: number } =>
-        "str" in item && "transform" in item
-    );
-
-    if (items.length === 0) {
-      pages.push({ num: i, lines: [], text: "", itemCount: 0 });
-      continue;
-    }
-
-    // Sort by y descending (top first), then x ascending (left first)
-    const sorted = [...items].sort((a, b) => {
-      const yA = a.transform[5];
-      const yB = b.transform[5];
-      // Use a small threshold for "same line" detection during sort
-      if (Math.abs(yA - yB) > 1.5) return yB - yA; // higher y = higher on page
-      return a.transform[4] - b.transform[4]; // left to right
-    });
-
-    // Group items into lines by y-coordinate proximity
-    // Two items are on the same line if their y-coords are within 2 units
-    const lines: string[] = [];
-    let lineItems: typeof sorted = [sorted[0]];
-
-    for (let j = 1; j < sorted.length; j++) {
-      const prev = lineItems[lineItems.length - 1];
-      const curr = sorted[j];
-      const yDiff = Math.abs(curr.transform[5] - prev.transform[5]);
-
-      if (yDiff <= 2) {
-        // Same line
-        lineItems.push(curr);
-      } else {
-        // Flush current line
-        // Sort line items by x to ensure left-to-right order
-        lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
-        const lineText = buildLineText(lineItems);
-        if (lineText.trim()) {
-          lines.push(lineText.trim());
-        }
-        lineItems = [curr];
-      }
-    }
-    // Flush last line
-    if (lineItems.length > 0) {
-      lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
-      const lineText = buildLineText(lineItems);
-      if (lineText.trim()) {
-        lines.push(lineText.trim());
-      }
-    }
-
-    const text = lines.join("\n");
-    pages.push({ num: i, lines, text, itemCount: items.length });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Mistral OCR failed (${resp.status}): ${errText}`);
   }
 
-  const fullText = pages.map((p) => p.text).join("\n\n");
-  return { pages, fullText };
-}
-
-// Build line text from sorted items, inserting spaces where needed
-function buildLineText(
-  items: Array<{ str: string; transform: number[]; width: number }>
-): string {
-  if (items.length === 0) return "";
-  let result = items[0].str;
-
-  for (let i = 1; i < items.length; i++) {
-    const prev = items[i - 1];
-    const curr = items[i];
-    // Check gap between end of previous item and start of current
-    const prevEnd = prev.transform[4] + (prev.width || 0);
-    const currStart = curr.transform[4];
-    const gap = currStart - prevEnd;
-
-    // If there's a visible gap and the previous item doesn't end with space
-    // and current doesn't start with space, insert a space
-    if (gap > 1 && !result.endsWith(" ") && !curr.str.startsWith(" ")) {
-      result += " ";
-    }
-    result += curr.str;
-  }
-  return result;
+  const data = await resp.json();
+  return data.pages || [];
 }
 
 // ============================================================
-// AI PROMPT — Only metadata + section classification
+// AI PROMPT — metadata + section classification from OCR markdown
 // ============================================================
-const EXTRACTION_PROMPT = `You are analyzing the text of an Arizona family court order. Extract metadata and identify which block IDs relate to specific topics.
+const EXTRACTION_PROMPT = `You are analyzing an Arizona family court order. The OCR-extracted text (markdown) is provided with page markers.
 
-You are given:
-1. The full text of the court order
-2. A list of block IDs with text previews
-
-Return ONLY valid JSON (no markdown, no code fences, no explanation):
+Extract metadata and classify content by topic. Return ONLY valid JSON (no markdown, no code fences):
 
 {
-  "caseNumber": "the case number (e.g., FC2024-001234) or null",
-  "petitionerName": "full legal name of the petitioner/plaintiff or null",
-  "respondentName": "full legal name of the respondent/defendant or null",
-  "courtName": "full name of the court (e.g., Maricopa County Superior Court) or null",
-  "orderDate": "the date the order was signed/entered (MM/DD/YYYY) or null",
-  "orderTitle": "the title of the order (e.g., CONSENT DECREE OF DISSOLUTION OF MARRIAGE) or null",
-  "judgeName": "the name of the judge or null",
-  "children": [
-    { "name": "child's full legal name", "dateOfBirth": "MM/DD/YYYY or null" }
-  ],
-  "blockClassifications": {
-    "BLOCK_ID": "legal_decision_making or parenting_time or child_support or other"
-  },
+  "caseNumber": "e.g. FC2024-001234 or null",
+  "petitionerName": "full legal name or null",
+  "respondentName": "full legal name or null",
+  "courtName": "full court name or null",
+  "orderDate": "MM/DD/YYYY or null",
+  "orderTitle": "title of the order or null",
+  "judgeName": "judge name or null",
+  "children": [{"name": "full name", "dateOfBirth": "MM/DD/YYYY or null"}],
   "sections": [
     {
-      "type": "legal_decision_making or parenting_time or child_support or other",
-      "pageNumber": "page number as a string or null",
-      "paragraphNumber": "paragraph number as a string or null",
+      "type": "legal_decision_making or parenting_time or child_support",
+      "pageNumber": "page number string or null",
+      "paragraphNumber": "paragraph/section number or null",
       "orderDate": "MM/DD/YYYY or null",
-      "summary": "brief 1-2 sentence summary",
-      "verbatimText": "the text of this section, properly formatted for court documents"
+      "summary": "1-2 sentence summary",
+      "verbatimText": "cleaned verbatim text from the order"
     }
   ]
 }
 
 RULES:
-- Return ONLY the JSON object. No other text.
-- Use null for any field you cannot determine.
-- In blockClassifications: map each block ID to its topic. Use "other" for general/unrelated blocks.
-- Only classify blocks that are clearly about legal_decision_making, parenting_time, or child_support. Everything else is "other".
-- SECTIONS: Only include sections about legal_decision_making, parenting_time, and child_support.
+- Return ONLY JSON. No other text.
+- Use null for unknown fields.
+- sections: Only include legal_decision_making, parenting_time, child_support sections.
 
-PAGE NUMBER DETECTION (CRITICAL):
-- Each block ID includes its page number in parentheses, e.g. "[b-42] (page 3): ..."
-- For each section, set "pageNumber" to the page where that section STARTS based on the block page numbers.
-- If a section spans multiple pages, use the FIRST page number where the section heading or content begins.
-- Look at the blocks you classified for each section type — the page number of the first block in that section is the pageNumber.
+PAGE NUMBERS: Use the "--- PAGE N ---" markers to determine page numbers for each section.
 
-PARAGRAPH NUMBER DETECTION (CRITICAL):
-- Court orders use numbered paragraphs. Look for patterns like: "7.", "VII.", "A.", "(a)", "Section 3", "¶ 4", "Paragraph 5", etc.
-- The paragraphNumber should be the SPECIFIC paragraph or section number in the original document where that topic begins.
-- For example, if legal decision making starts at paragraph "7." on page 4, set pageNumber: "4" and paragraphNumber: "7".
-- If the document uses nested numbering like "IV.A.3", include the full reference (e.g., "IV.A.3").
-- If the document uses headings with Roman numerals like "VII. LEGAL DECISION-MAKING", use "VII".
-- If no clear paragraph number exists, use null — do NOT guess or make one up.
+PARAGRAPH NUMBERS: Look for "7.", "VII.", "A.", "(a)", "Section 3", etc. Use the specific paragraph number where the topic begins. Use null if unclear.
 
-- For verbatimText: Use the EXACT content from the order — do NOT add, remove, or change any substantive words, facts, dates, names, or legal terms. However, you MUST clean up formatting issues caused by PDF extraction:
-  * Fix broken words that were split across lines (e.g., "par- enting" → "parenting")
-  * Remove stray line numbers from pleading margins (e.g., leading "8 " or "12 ")
-  * Fix irregular spacing (double spaces, missing spaces after punctuation)
-  * Ensure proper sentence capitalization and punctuation
-  * Join sentence fragments that were split across PDF lines into proper flowing paragraphs
-  * Preserve numbered paragraph structure (e.g., "1. ...", "a. ...", "(A) ...")
-  * Keep legal citations exactly as they appear (e.g., "A.R.S. §25-403")
-  The goal is court-acceptable formatting of the SAME content — readable, properly punctuated paragraphs instead of raw OCR line fragments.`;
+VERBATIM TEXT: Use exact content but fix OCR formatting issues:
+  * Fix broken words split across lines (e.g., "par- enting" -> "parenting")
+  * Remove stray margin line numbers
+  * Fix irregular spacing
+  * Join fragments into proper paragraphs
+  * Preserve numbered structure and legal citations exactly (e.g., "A.R.S. §25-403")`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -245,43 +136,38 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // ========================================================
-    // STEP 1: Extract text per page using pdfjs-dist (no worker)
+    // STEP 1: Mistral OCR 3 — extract text from PDF
+    // Handles both digital and scanned PDFs (no fallback needed)
     // ========================================================
-    let pdfData: { pages: ExtractedPage[]; fullText: string };
+    console.log("[extract-orders] Starting Mistral OCR 3 extraction...");
+    let ocrPages: OcrPage[];
     try {
-      // Timeout pdfjs extraction at 30s to leave time for AI processing
-      pdfData = await Promise.race([
-        extractPdfPages(buffer),
+      ocrPages = await Promise.race([
+        extractWithMistralOcr(buffer),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("PDF text extraction timed out")), 30000)
+          setTimeout(() => reject(new Error("OCR timed out")), 60000)
         ),
       ]);
-    } catch (parseError) {
-      console.error("pdfjs-dist extraction failed:", parseError);
-      // Fallback for scanned/image PDFs
-      return await handleDirectPdfExtraction(buffer, file.name, user.id);
+    } catch (ocrError) {
+      console.error("[extract-orders] Mistral OCR failed:", ocrError);
+      return NextResponse.json(
+        { error: "Could not read the PDF document. Please try again or enter information manually." },
+        { status: 422 }
+      );
     }
 
-    // Check extraction quality — if too little text, fall back to direct PDF approach
-    const totalLines = pdfData.pages.reduce((sum, p) => sum + p.lines.length, 0);
-    const avgLinesPerPage = totalLines / Math.max(pdfData.pages.length, 1);
-    console.log(
-      `[extract-orders] Extraction check: ${pdfData.fullText.length} chars, ` +
-      `${totalLines} lines, ${avgLinesPerPage.toFixed(1)} avg lines/page, ` +
-      `${pdfData.pages.length} pages`
-    );
+    const totalChars = ocrPages.reduce((sum, p) => sum + (p.markdown?.length || 0), 0);
+    console.log(`[extract-orders] OCR: ${ocrPages.length} pages, ${totalChars} chars`);
 
-    if (
-      !pdfData.fullText ||
-      pdfData.fullText.trim().length < 50 ||
-      (pdfData.pages.length > 2 && avgLinesPerPage < 3)
-    ) {
-      console.log("[extract-orders] Text extraction insufficient, using direct PDF approach");
-      return await handleDirectPdfExtraction(buffer, file.name, user.id);
+    if (!ocrPages.length || totalChars < 50) {
+      return NextResponse.json(
+        { error: "Could not extract text from the document. The PDF may be empty or corrupted." },
+        { status: 422 }
+      );
     }
 
     // ========================================================
-    // STEP 2: Each line becomes a block — maximum fidelity
+    // STEP 2: Build blocks from OCR markdown (for fullOrderContent)
     // ========================================================
     interface TextBlock {
       id: string;
@@ -290,67 +176,77 @@ export async function POST(request: NextRequest) {
     }
 
     const blocks: TextBlock[] = [];
-    for (const page of pdfData.pages) {
-      for (const line of page.lines) {
-        if (line.trim()) {
+    for (const page of ocrPages) {
+      const pageNum = (page.index || 0) + 1;
+      const lines = (page.markdown || "").split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) {
           blocks.push({
             id: `b-${blocks.length}`,
-            text: line.trim(),
-            pageNum: page.num,
+            text: trimmed,
+            pageNum,
           });
         }
       }
     }
 
-    console.log(
-      `[extract-orders] PDF: ${pdfData.pages.length} pages, ` +
-      `${blocks.length} blocks, ` +
-      `${pdfData.fullText.length} chars total. ` +
-      `Items per page: ${pdfData.pages.map((p) => p.itemCount).join(",")}`
-    );
+    console.log(`[extract-orders] ${blocks.length} blocks from OCR`);
 
     // ========================================================
-    // STEP 3: Single AI call — metadata + classification
+    // STEP 3: AI classification via Mistral chat
     // ========================================================
-    // Truncate block summary to ~400 blocks to stay within AI token limits
-    const blocksForSummary = blocks.length > 400 ? blocks.slice(0, 400) : blocks;
-    const blockSummary = blocksForSummary
-      .map(
-        (b) =>
-          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 200)}${b.text.length > 200 ? "..." : ""}`
-      )
-      .join("\n");
-    // Also truncate full text if extremely long (>80K chars)
-    const fullTextForAI = pdfData.fullText.length > 80000
-      ? pdfData.fullText.substring(0, 80000) + "\n\n[...truncated for processing...]"
-      : pdfData.fullText;
+    // Build page-annotated text for the AI
+    let annotatedText = "";
+    for (const page of ocrPages) {
+      const pageNum = (page.index || 0) + 1;
+      annotatedText += `\n--- PAGE ${pageNum} ---\n${page.markdown || ""}\n`;
+    }
 
-    const mistral = getMistral();
-    const aiResponse = await mistral.chat.completions.create({
-      model: "mistral-small-latest",
-      max_tokens: 8192,
-      messages: [
-        { role: "system", content: EXTRACTION_PROMPT },
-        {
-          role: "user",
-          content: `Here is the full text of the court order:\n\n${fullTextForAI}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
-        },
-      ],
+    // Cap at 80K chars
+    if (annotatedText.length > 80000) {
+      annotatedText = annotatedText.substring(0, 80000) + "\n\n[...truncated...]";
+    }
+
+    const classifyResp = await fetch(MISTRAL_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${MISTRAL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "mistral-small-latest",
+        max_tokens: 8192,
+        messages: [
+          { role: "system", content: EXTRACTION_PROMPT },
+          { role: "user", content: annotatedText },
+        ],
+      }),
     });
 
-    const aiText = aiResponse.choices[0]?.message?.content?.trim() || "";
-    if (!aiText) {
-      console.error("[extract-orders] AI returned empty response");
+    if (!classifyResp.ok) {
+      const errText = await classifyResp.text();
+      console.error("[extract-orders] Classification failed:", errText);
       return NextResponse.json(
         { error: "AI could not analyze the document. Please try again or enter information manually." },
         { status: 422 }
       );
     }
+
+    const classifyData = await classifyResp.json();
+    const aiText = classifyData.choices?.[0]?.message?.content?.trim() || "";
+    if (!aiText) {
+      return NextResponse.json(
+        { error: "AI could not analyze the document. Please try again or enter information manually." },
+        { status: 422 }
+      );
+    }
+
     const aiJson = extractJson(aiText);
     let aiData;
     try {
       aiData = JSON.parse(aiJson);
-    } catch (parseError) {
+    } catch {
       console.error("[extract-orders] AI JSON parse failed:", aiText.substring(0, 500));
       return NextResponse.json(
         { error: "Could not parse the document structure. Please try again or enter information manually." },
@@ -358,8 +254,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!aiData || typeof aiData !== 'object') {
-      console.error("[extract-orders] AI returned non-object:", typeof aiData);
+    if (!aiData || typeof aiData !== "object") {
       return NextResponse.json(
         { error: "Could not analyze the document structure. Please enter information manually." },
         { status: 422 }
@@ -367,16 +262,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ========================================================
-    // STEP 4: Build fullOrderContent from blocks + AI classifications
+    // STEP 4: Build fullOrderContent from blocks
     // ========================================================
-    const classifications: Record<string, string> =
-      aiData.blockClassifications || {};
     const fullOrderContent = blocks.map((b) => ({
       paragraphId: b.id,
       heading: null,
       text: b.text,
       sectionGroup: "orders" as const,
-      type: (classifications[b.id] || "other") as
+      type: "other" as
         | "legal_decision_making"
         | "parenting_time"
         | "child_support"
@@ -406,19 +299,18 @@ export async function POST(request: NextRequest) {
     const storagePath = await storePdf(buffer, file.name, user.id);
 
     console.log(
-      `[extract-orders] Result: ${fullOrderContent.length} content blocks, ` +
-      `${pdfData.pages.length} pages`
+      `[extract-orders] Result: ${fullOrderContent.length} content blocks, ${ocrPages.length} pages`
     );
 
     return NextResponse.json({
       extractedData,
       storagePath,
       _debug: {
-        totalPages: pdfData.pages.length,
+        totalPages: ocrPages.length,
         totalBlocks: blocks.length,
-        totalChars: pdfData.fullText.length,
-        itemsPerPage: pdfData.pages.map((p) => p.itemCount),
-        linesPerPage: pdfData.pages.map((p) => p.lines.length),
+        totalChars,
+        linesPerPage: ocrPages.map((p) => (p.markdown || "").split("\n").filter((l: string) => l.trim()).length),
+        engine: "mistral-ocr-3",
       },
     });
   } catch (error) {
@@ -458,195 +350,6 @@ export async function POST(request: NextRequest) {
 function extractJson(text: string): string {
   const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   return match ? match[1].trim() : text;
-}
-
-// Fallback: send PDF directly to GPT-4o for scanned/image PDFs
-// Two-step approach:
-//   1. GPT-4o extracts raw text (every line, every page)
-//   2. Feed through same block-building + classification pipeline as primary path
-async function handleDirectPdfExtraction(
-  buffer: Buffer,
-  fileName: string,
-  userId: string
-) {
-  const base64 = buffer.toString("base64");
-  const fileDataUrl = `data:application/pdf;base64,${base64}`;
-  const openai = getOpenAI();
-
-  // ========================================================
-  // STEP 1: Extract raw text from every page via GPT-4o vision
-  // ========================================================
-  const textExtractionPrompt = `You are a document OCR tool. Extract ALL text from this court order PDF.
-
-OUTPUT FORMAT: Return the text exactly as it appears in the document. Separate pages with a line containing only "---PAGE_BREAK---". Include EVERY line of text. Do NOT summarize, paraphrase, or skip any content. Copy the text VERBATIM.
-
-Rules:
-- Include headers, footers, page numbers, signatures, everything
-- Preserve paragraph breaks as blank lines
-- Do NOT add any commentary or explanation
-- Do NOT wrap in code fences or JSON
-- Just output the raw text, page by page`;
-
-  console.log("[extract-orders] Fallback: extracting text via GPT-4.1-mini vision...");
-
-  const textResponse = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
-    max_tokens: 16384,
-    messages: [
-      { role: "system", content: textExtractionPrompt },
-      {
-        role: "user",
-        content: [
-          {
-            type: "file",
-            file: {
-              filename: fileName || "court-order.pdf",
-              file_data: fileDataUrl,
-            },
-          },
-          {
-            type: "text",
-            text: "Extract ALL text from every page of this document. Do not skip anything.",
-          },
-        ],
-      },
-    ],
-  });
-
-  const rawText = textResponse.choices[0]?.message?.content?.trim() || "";
-  if (!rawText || rawText.length < 50) {
-    return NextResponse.json(
-      { error: "Could not extract text from the document. Please enter your information manually." },
-      { status: 422 }
-    );
-  }
-
-  // ========================================================
-  // STEP 2: Parse extracted text into pages and blocks
-  // ========================================================
-  const pageTexts = rawText.split(/---PAGE_BREAK---/i);
-  interface TextBlock {
-    id: string;
-    text: string;
-    pageNum: number;
-  }
-  const blocks: TextBlock[] = [];
-
-  for (let pageIdx = 0; pageIdx < pageTexts.length; pageIdx++) {
-    const pageText = pageTexts[pageIdx];
-    const lines = pageText.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-    for (const line of lines) {
-      blocks.push({
-        id: `b-${blocks.length}`,
-        text: line,
-        pageNum: pageIdx + 1,
-      });
-    }
-  }
-
-  console.log(
-    `[extract-orders] Fallback OCR: ${pageTexts.length} pages, ${blocks.length} blocks, ${rawText.length} chars`
-  );
-
-  // ========================================================
-  // STEP 3: AI classification — same as primary path
-  // ========================================================
-  const fullText = blocks.map((b) => b.text).join("\n");
-  const blockSummary = blocks
-    .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 200)}${b.text.length > 200 ? "..." : ""}`)
-    .join("\n");
-
-  const mistral = getMistral();
-  const aiResponse = await mistral.chat.completions.create({
-    model: "mistral-small-latest",
-    max_tokens: 8192,
-    messages: [
-      { role: "system", content: EXTRACTION_PROMPT },
-      {
-        role: "user",
-        content: `Here is the full text of the court order:\n\n${fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
-      },
-    ],
-  });
-
-  const aiText = aiResponse.choices[0]?.message?.content?.trim() || "";
-  if (!aiText) {
-    console.error("[extract-orders] Fallback: AI returned empty response");
-    return NextResponse.json(
-      { error: "AI could not analyze the document. Please try again or enter information manually." },
-      { status: 422 }
-    );
-  }
-  const aiJson = extractJson(aiText);
-  let aiData;
-  try {
-    aiData = JSON.parse(aiJson);
-  } catch (parseError) {
-    console.error("[extract-orders] Fallback: AI JSON parse failed:", aiText.substring(0, 500));
-    return NextResponse.json(
-      { error: "Could not parse the document structure. Please try again or enter information manually." },
-      { status: 422 }
-    );
-  }
-
-  if (!aiData || typeof aiData !== 'object') {
-    return NextResponse.json(
-      { error: "Could not analyze the document structure. Please enter information manually." },
-      { status: 422 }
-    );
-  }
-
-  // ========================================================
-  // STEP 4: Build fullOrderContent from blocks + AI classifications
-  // ========================================================
-  const classifications: Record<string, string> = aiData.blockClassifications || {};
-  const fullOrderContent = blocks.map((b) => ({
-    paragraphId: b.id,
-    heading: null,
-    text: b.text,
-    sectionGroup: "orders" as const,
-    type: (classifications[b.id] || "other") as
-      | "legal_decision_making"
-      | "parenting_time"
-      | "child_support"
-      | "property"
-      | "spousal_maintenance"
-      | "other",
-    pageNum: b.pageNum,
-  }));
-
-  const extractedData = {
-    caseNumber: aiData.caseNumber,
-    petitionerName: aiData.petitionerName,
-    respondentName: aiData.respondentName,
-    courtName: aiData.courtName,
-    orderDate: aiData.orderDate,
-    orderTitle: aiData.orderTitle,
-    judgeName: aiData.judgeName,
-    children: aiData.children || [],
-    sections: aiData.sections || [],
-    fullOrderContent,
-    confidence: "high" as const,
-  };
-
-  const storagePath = await storePdf(buffer, fileName, userId);
-
-  console.log(
-    `[extract-orders] Fallback result: ${fullOrderContent.length} content blocks, ${pageTexts.length} pages`
-  );
-
-  return NextResponse.json({
-    extractedData,
-    storagePath,
-    _debug: {
-      totalPages: pageTexts.length,
-      totalBlocks: blocks.length,
-      totalChars: rawText.length,
-      itemsPerPage: pageTexts.map((p) => p.split("\n").filter((l) => l.trim()).length),
-      linesPerPage: pageTexts.map((p) => p.split("\n").filter((l) => l.trim()).length),
-      fallback: true,
-    },
-  });
 }
 
 // Store PDF in Supabase storage

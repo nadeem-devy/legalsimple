@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """
-Fast Court Order PDF Extraction Script
+Fast Court Order PDF Extraction — Mistral OCR 3
 Extracts case info, parties, children, and classified sections from
-Arizona family court order PDFs in under 30 seconds.
-
-Uses: PyMuPDF (fitz) for PDF extraction + Mistral AI for classification.
+Arizona family court order PDFs using Mistral OCR 3 + structured annotation.
 
 Usage:
   python extract_court_order.py <path_to_pdf>
   python extract_court_order.py --serve  # Run as FastAPI microservice
 
 Requirements:
-  pip install pymupdf httpx python-dotenv
+  pip install httpx python-dotenv
   pip install fastapi uvicorn python-multipart  # only for --serve mode
 """
 
@@ -20,10 +18,10 @@ import os
 import json
 import time
 import re
+import base64
 from pathlib import Path
 from typing import Optional
 
-import fitz  # PyMuPDF
 import httpx
 from dotenv import load_dotenv
 
@@ -32,108 +30,21 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env.local")
 
 MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
-MISTRAL_MODEL = "mistral-small-latest"
-MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr"
+MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
+MISTRAL_FILES_URL = "https://api.mistral.ai/v1/files"
+
+HEADERS = {
+    "Authorization": f"Bearer {MISTRAL_API_KEY}",
+}
 
 # ============================================================
-# PDF Text Extraction (PyMuPDF — 10-50x faster than pdfjs-dist)
+# Structured extraction prompt for classification step
 # ============================================================
 
-def extract_pdf_text(pdf_path: str) -> tuple[list[dict], str]:
-    """Extract text from PDF, returning (pages, full_text).
-    Each page = { num, lines, text, item_count }
-    """
-    doc = fitz.open(pdf_path)
-    pages = []
+EXTRACTION_PROMPT = """You are analyzing an Arizona family court order. The OCR text (markdown) is provided below.
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        # Extract text blocks with position info
-        # flags: TEXT_PRESERVE_WHITESPACE | TEXT_PRESERVE_LIGATURES
-        blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
-
-        lines = []
-        for block in blocks:
-            if block["type"] != 0:  # Skip image blocks
-                continue
-            for line in block.get("lines", []):
-                spans = line.get("spans", [])
-                line_text = "".join(s["text"] for s in spans).strip()
-                if line_text:
-                    lines.append(line_text)
-
-        pages.append({
-            "num": page_num + 1,
-            "lines": lines,
-            "text": "\n".join(lines),
-            "item_count": len(lines),
-        })
-
-    doc.close()
-    full_text = "\n\n".join(p["text"] for p in pages)
-    return pages, full_text
-
-
-def extract_pdf_text_from_bytes(pdf_bytes: bytes) -> tuple[list[dict], str]:
-    """Same as extract_pdf_text but from bytes (for API mode)."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    pages = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
-
-        lines = []
-        for block in blocks:
-            if block["type"] != 0:
-                continue
-            for line in block.get("lines", []):
-                spans = line.get("spans", [])
-                line_text = "".join(s["text"] for s in spans).strip()
-                if line_text:
-                    lines.append(line_text)
-
-        pages.append({
-            "num": page_num + 1,
-            "lines": lines,
-            "text": "\n".join(lines),
-            "item_count": len(lines),
-        })
-
-    doc.close()
-    full_text = "\n\n".join(p["text"] for p in pages)
-    return pages, full_text
-
-
-# ============================================================
-# Build blocks from pages (each line = one block)
-# ============================================================
-
-def build_blocks(pages: list[dict]) -> list[dict]:
-    """Convert pages into flat list of text blocks with IDs."""
-    blocks = []
-    for page in pages:
-        for line in page["lines"]:
-            if line.strip():
-                blocks.append({
-                    "id": f"b-{len(blocks)}",
-                    "text": line.strip(),
-                    "page_num": page["num"],
-                })
-    return blocks
-
-
-# ============================================================
-# AI Classification via Mistral
-# ============================================================
-
-EXTRACTION_PROMPT = """You are analyzing an Arizona family court order. Extract metadata and classify text blocks by topic.
-
-You receive:
-1. Full text of the court order
-2. Block IDs with page numbers and text previews
-
-Return ONLY valid JSON (no markdown, no code fences):
+Extract metadata and classify content by topic. Return ONLY valid JSON (no markdown, no code fences):
 
 {
   "caseNumber": "e.g. FC2024-001234 or null",
@@ -144,7 +55,6 @@ Return ONLY valid JSON (no markdown, no code fences):
   "orderTitle": "title of the order or null",
   "judgeName": "judge name or null",
   "children": [{"name": "full name", "dateOfBirth": "MM/DD/YYYY or null"}],
-  "blockClassifications": {"BLOCK_ID": "legal_decision_making|parenting_time|child_support|other"},
   "sections": [
     {
       "type": "legal_decision_making|parenting_time|child_support",
@@ -160,66 +70,112 @@ Return ONLY valid JSON (no markdown, no code fences):
 RULES:
 - Return ONLY JSON. No other text.
 - Use null for unknown fields.
-- blockClassifications: map each block ID to its topic. Use "other" for unrelated blocks.
 - sections: Only include legal_decision_making, parenting_time, child_support sections.
-
-PAGE NUMBERS: Each block shows "(page N)". Set section pageNumber to the page where that section STARTS.
-
-PARAGRAPH NUMBERS: Look for "7.", "VII.", "A.", "(a)", "Section 3", etc. Use the specific paragraph number where the topic begins. Use null if unclear.
-
-VERBATIM TEXT: Use exact content from the order but fix PDF formatting issues:
-- Fix broken words split across lines (e.g., "par- enting" -> "parenting")
-- Remove stray margin line numbers
-- Fix irregular spacing
-- Join fragments into proper paragraphs
-- Preserve numbered structure and legal citations exactly"""
+- pageNumber: Use the page number where the section starts (from page markers in the OCR text).
+- paragraphNumber: Look for "7.", "VII.", "A.", "(a)", "Section 3", etc.
+- verbatimText: Use exact content but fix OCR artifacts (broken words, stray line numbers, spacing)."""
 
 
-def classify_with_mistral(
-    full_text: str,
-    blocks: list[dict],
-    timeout: float = 60.0,
-) -> dict:
-    """Send text + blocks to Mistral for classification."""
-    if not MISTRAL_API_KEY:
-        raise ValueError("MISTRAL_API_KEY not set in environment")
+# ============================================================
+# Step 1: Upload PDF to Mistral Files API
+# ============================================================
 
-    # Cap blocks at 400 for token limits
-    blocks_for_summary = blocks[:400]
-    block_summary = "\n".join(
-        f"[{b['id']}] (page {b['page_num']}): {b['text'][:200]}{'...' if len(b['text']) > 200 else ''}"
-        for b in blocks_for_summary
+def upload_file(pdf_bytes: bytes, filename: str = "court-order.pdf") -> str:
+    """Upload PDF to Mistral Files API, return file_id."""
+    resp = httpx.post(
+        MISTRAL_FILES_URL,
+        headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
+        files={"file": (filename, pdf_bytes, "application/pdf")},
+        data={"purpose": "ocr"},
+        timeout=30.0,
     )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["id"]
 
-    # Cap full text at 80K chars
-    text_for_ai = full_text[:80000]
-    if len(full_text) > 80000:
-        text_for_ai += "\n\n[...truncated...]"
 
-    user_content = (
-        f"Here is the full text of the court order:\n\n{text_for_ai}\n\n"
-        f"---\n\nBlock IDs:\n{block_summary}"
-    )
+# ============================================================
+# Step 2: Mistral OCR 3 — extract text with structure
+# ============================================================
 
+def ocr_extract(file_id: str) -> list[dict]:
+    """Call Mistral OCR 3 API with uploaded file. Returns list of pages."""
     payload = {
-        "model": MISTRAL_MODEL,
-        "max_tokens": 8192,
-        "messages": [
-            {"role": "system", "content": EXTRACTION_PROMPT},
-            {"role": "user", "content": user_content},
-        ],
-    }
-
-    headers = {
-        "Authorization": f"Bearer {MISTRAL_API_KEY}",
-        "Content-Type": "application/json",
+        "model": "mistral-ocr-latest",
+        "document": {
+            "type": "file_id",
+            "file_id": file_id,
+        },
+        "include_image_base64": False,
     }
 
     resp = httpx.post(
-        MISTRAL_URL,
+        MISTRAL_OCR_URL,
+        headers={**HEADERS, "Content-Type": "application/json"},
         json=payload,
-        headers=headers,
-        timeout=timeout,
+        timeout=60.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("pages", [])
+
+
+def ocr_extract_base64(pdf_bytes: bytes) -> list[dict]:
+    """Call Mistral OCR 3 with base64-encoded PDF (no file upload needed)."""
+    b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    data_url = f"data:application/pdf;base64,{b64}"
+
+    payload = {
+        "model": "mistral-ocr-latest",
+        "document": {
+            "type": "document_url",
+            "document_url": data_url,
+        },
+        "include_image_base64": False,
+    }
+
+    resp = httpx.post(
+        MISTRAL_OCR_URL,
+        headers={**HEADERS, "Content-Type": "application/json"},
+        json=payload,
+        timeout=60.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("pages", [])
+
+
+# ============================================================
+# Step 3: Classify with Mistral chat (mistral-small)
+# ============================================================
+
+def classify_sections(full_text: str, pages_data: list[dict]) -> dict:
+    """Send OCR text to Mistral for structured classification."""
+    # Build page-annotated text for the AI
+    annotated_text = ""
+    for page in pages_data:
+        page_num = page.get("index", 0) + 1
+        markdown = page.get("markdown", "")
+        annotated_text += f"\n--- PAGE {page_num} ---\n{markdown}\n"
+
+    # Cap at 80K chars
+    if len(annotated_text) > 80000:
+        annotated_text = annotated_text[:80000] + "\n\n[...truncated...]"
+
+    payload = {
+        "model": "mistral-small-latest",
+        "max_tokens": 8192,
+        "messages": [
+            {"role": "system", "content": EXTRACTION_PROMPT},
+            {"role": "user", "content": annotated_text},
+        ],
+    }
+
+    resp = httpx.post(
+        MISTRAL_CHAT_URL,
+        headers={**HEADERS, "Content-Type": "application/json"},
+        json=payload,
+        timeout=60.0,
     )
     resp.raise_for_status()
     data = resp.json()
@@ -233,54 +189,81 @@ def classify_with_mistral(
 
 
 # ============================================================
-# Main extraction pipeline
+# Build blocks from OCR pages (for fullOrderContent compatibility)
+# ============================================================
+
+def build_blocks_from_ocr(pages_data: list[dict]) -> list[dict]:
+    """Convert OCR pages into flat blocks with IDs."""
+    blocks = []
+    for page in pages_data:
+        page_num = page.get("index", 0) + 1
+        markdown = page.get("markdown", "")
+        for line in markdown.split("\n"):
+            text = line.strip()
+            if text:
+                blocks.append({
+                    "id": f"b-{len(blocks)}",
+                    "text": text,
+                    "page_num": page_num,
+                })
+    return blocks
+
+
+# ============================================================
+# Main extraction pipeline — Mistral OCR 3
 # ============================================================
 
 def extract_court_order(
     pdf_path: Optional[str] = None,
     pdf_bytes: Optional[bytes] = None,
 ) -> dict:
-    """Full extraction pipeline. Returns structured court order data."""
+    """Full extraction pipeline using Mistral OCR 3."""
     t0 = time.time()
 
-    # Step 1: Extract text from PDF
-    t1 = time.time()
-    if pdf_path:
-        pages, full_text = extract_pdf_text(pdf_path)
-    elif pdf_bytes:
-        pages, full_text = extract_pdf_text_from_bytes(pdf_bytes)
-    else:
-        raise ValueError("Provide either pdf_path or pdf_bytes")
-    t_extract = time.time() - t1
+    if not MISTRAL_API_KEY:
+        raise ValueError("MISTRAL_API_KEY not set in environment")
 
-    total_lines = sum(p["item_count"] for p in pages)
+    # Read PDF bytes
+    if pdf_path:
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+    elif pdf_bytes is None:
+        raise ValueError("Provide either pdf_path or pdf_bytes")
+
+    # Step 1: OCR via Mistral OCR 3 (base64 — no upload step needed)
+    t1 = time.time()
+    pages_data = ocr_extract_base64(pdf_bytes)
+    t_ocr = time.time() - t1
+
+    total_chars = sum(len(p.get("markdown", "")) for p in pages_data)
     print(
-        f"[extract] PDF: {len(pages)} pages, {total_lines} lines, "
-        f"{len(full_text)} chars ({t_extract:.2f}s)"
+        f"[extract] OCR: {len(pages_data)} pages, {total_chars} chars ({t_ocr:.2f}s)"
     )
 
-    if not full_text or len(full_text.strip()) < 50:
-        raise ValueError("PDF contains too little text — may be scanned/image-only")
+    if not pages_data or total_chars < 50:
+        raise ValueError("OCR extracted too little text — document may be empty or corrupted")
 
-    # Step 2: Build blocks
-    blocks = build_blocks(pages)
-    print(f"[extract] {len(blocks)} blocks built")
+    # Step 2: Build blocks from OCR output
+    blocks = build_blocks_from_ocr(pages_data)
+    print(f"[extract] {len(blocks)} blocks built from OCR")
 
     # Step 3: AI classification
     t2 = time.time()
-    ai_data = classify_with_mistral(full_text, blocks)
+    ai_data = classify_sections(
+        "\n".join(p.get("markdown", "") for p in pages_data),
+        pages_data,
+    )
     t_classify = time.time() - t2
     print(f"[extract] AI classification done ({t_classify:.2f}s)")
 
-    # Step 4: Build full order content
-    classifications = ai_data.get("blockClassifications", {})
+    # Step 4: Build fullOrderContent (compatible with existing app format)
     full_order_content = [
         {
             "paragraphId": b["id"],
             "heading": None,
             "text": b["text"],
             "sectionGroup": "orders",
-            "type": classifications.get(b["id"], "other"),
+            "type": "other",
             "pageNum": b["page_num"],
         }
         for b in blocks
@@ -301,15 +284,18 @@ def extract_court_order(
             "confidence": "high",
         },
         "_debug": {
-            "totalPages": len(pages),
+            "totalPages": len(pages_data),
             "totalBlocks": len(blocks),
-            "totalChars": len(full_text),
-            "linesPerPage": [p["item_count"] for p in pages],
+            "totalChars": total_chars,
+            "linesPerPage": [
+                len(p.get("markdown", "").split("\n")) for p in pages_data
+            ],
             "timings": {
-                "pdfExtraction": round(t_extract, 3),
+                "ocrExtraction": round(t_ocr, 3),
                 "aiClassification": round(t_classify, 3),
                 "total": round(time.time() - t0, 3),
             },
+            "engine": "mistral-ocr-3",
         },
     }
 
@@ -333,7 +319,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8100):
     from fastapi.middleware.cors import CORSMiddleware
     import uvicorn
 
-    app = FastAPI(title="Court Order Extractor")
+    app = FastAPI(title="Court Order Extractor (Mistral OCR 3)")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -394,7 +380,7 @@ if __name__ == "__main__":
         data = result["extractedData"]
         debug = result["_debug"]
         print("\n" + "=" * 60)
-        print("EXTRACTION RESULTS")
+        print("EXTRACTION RESULTS (Mistral OCR 3)")
         print("=" * 60)
         print(f"Case Number:  {data['caseNumber']}")
         print(f"Court:        {data['courtName']}")
