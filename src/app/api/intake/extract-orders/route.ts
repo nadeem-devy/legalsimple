@@ -174,6 +174,21 @@ RULES:
 - In blockClassifications: map each block ID to its topic. Use "other" for general/unrelated blocks.
 - Only classify blocks that are clearly about legal_decision_making, parenting_time, or child_support. Everything else is "other".
 - SECTIONS: Only include sections about legal_decision_making, parenting_time, and child_support.
+
+PAGE NUMBER DETECTION (CRITICAL):
+- Each block ID includes its page number in parentheses, e.g. "[b-42] (page 3): ..."
+- For each section, set "pageNumber" to the page where that section STARTS based on the block page numbers.
+- If a section spans multiple pages, use the FIRST page number where the section heading or content begins.
+- Look at the blocks you classified for each section type — the page number of the first block in that section is the pageNumber.
+
+PARAGRAPH NUMBER DETECTION (CRITICAL):
+- Court orders use numbered paragraphs. Look for patterns like: "7.", "VII.", "A.", "(a)", "Section 3", "¶ 4", "Paragraph 5", etc.
+- The paragraphNumber should be the SPECIFIC paragraph or section number in the original document where that topic begins.
+- For example, if legal decision making starts at paragraph "7." on page 4, set pageNumber: "4" and paragraphNumber: "7".
+- If the document uses nested numbering like "IV.A.3", include the full reference (e.g., "IV.A.3").
+- If the document uses headings with Roman numerals like "VII. LEGAL DECISION-MAKING", use "VII".
+- If no clear paragraph number exists, use null — do NOT guess or make one up.
+
 - For verbatimText: Use the EXACT content from the order — do NOT add, remove, or change any substantive words, facts, dates, names, or legal terms. However, you MUST clean up formatting issues caused by PDF extraction:
   * Fix broken words that were split across lines (e.g., "par- enting" → "parenting")
   * Remove stray line numbers from pleading margins (e.g., leading "8 " or "12 ")
@@ -295,7 +310,7 @@ export async function POST(request: NextRequest) {
     const blockSummary = blocksForSummary
       .map(
         (b) =>
-          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 120)}${b.text.length > 120 ? "..." : ""}`
+          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 200)}${b.text.length > 200 ? "..." : ""}`
       )
       .join("\n");
     // Also truncate full text if extremely long (>80K chars)
@@ -531,7 +546,7 @@ Rules:
   // ========================================================
   const fullText = blocks.map((b) => b.text).join("\n");
   const blockSummary = blocks
-    .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`)
+    .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 200)}${b.text.length > 200 ? "..." : ""}`)
     .join("\n");
 
   const aiResponse = await openai.chat.completions.create({
