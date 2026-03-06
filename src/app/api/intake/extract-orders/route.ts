@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createRawClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
-// Allow up to 60 seconds for PDF extraction + AI processing
-export const maxDuration = 60;
+// Allow up to 120 seconds for PDF extraction + AI processing (large PDFs need more time)
+export const maxDuration = 120;
 
 function getOpenAI() {
   return new OpenAI({
@@ -227,7 +227,13 @@ export async function POST(request: NextRequest) {
     // ========================================================
     let pdfData: { pages: ExtractedPage[]; fullText: string };
     try {
-      pdfData = await extractPdfPages(buffer);
+      // Timeout pdfjs extraction at 30s to leave time for AI processing
+      pdfData = await Promise.race([
+        extractPdfPages(buffer),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("PDF text extraction timed out")), 30000)
+        ),
+      ]);
     } catch (parseError) {
       console.error("pdfjs-dist extraction failed:", parseError);
       // Fallback for scanned/image PDFs
@@ -284,12 +290,18 @@ export async function POST(request: NextRequest) {
     // ========================================================
     // STEP 3: Single AI call — metadata + classification
     // ========================================================
-    const blockSummary = blocks
+    // Truncate block summary to ~400 blocks to stay within AI token limits
+    const blocksForSummary = blocks.length > 400 ? blocks.slice(0, 400) : blocks;
+    const blockSummary = blocksForSummary
       .map(
         (b) =>
-          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`
+          `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 120)}${b.text.length > 120 ? "..." : ""}`
       )
       .join("\n");
+    // Also truncate full text if extremely long (>80K chars)
+    const fullTextForAI = pdfData.fullText.length > 80000
+      ? pdfData.fullText.substring(0, 80000) + "\n\n[...truncated for processing...]"
+      : pdfData.fullText;
 
     const openai = getOpenAI();
     const aiResponse = await openai.chat.completions.create({
@@ -299,14 +311,38 @@ export async function POST(request: NextRequest) {
         { role: "system", content: EXTRACTION_PROMPT },
         {
           role: "user",
-          content: `Here is the full text of the court order:\n\n${pdfData.fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
+          content: `Here is the full text of the court order:\n\n${fullTextForAI}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
         },
       ],
     });
 
     const aiText = aiResponse.choices[0]?.message?.content?.trim() || "";
+    if (!aiText) {
+      console.error("[extract-orders] AI returned empty response");
+      return NextResponse.json(
+        { error: "AI could not analyze the document. Please try again or enter information manually." },
+        { status: 422 }
+      );
+    }
     const aiJson = extractJson(aiText);
-    const aiData = JSON.parse(aiJson);
+    let aiData;
+    try {
+      aiData = JSON.parse(aiJson);
+    } catch (parseError) {
+      console.error("[extract-orders] AI JSON parse failed:", aiText.substring(0, 500));
+      return NextResponse.json(
+        { error: "Could not parse the document structure. Please try again or enter information manually." },
+        { status: 422 }
+      );
+    }
+
+    if (!aiData || typeof aiData !== 'object') {
+      console.error("[extract-orders] AI returned non-object:", typeof aiData);
+      return NextResponse.json(
+        { error: "Could not analyze the document structure. Please enter information manually." },
+        { status: 422 }
+      );
+    }
 
     // ========================================================
     // STEP 4: Build fullOrderContent from blocks + AI classifications
@@ -366,19 +402,31 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Order extraction error:", error);
 
+    const message = error instanceof Error ? error.message : "Unknown error";
+
     if (error instanceof SyntaxError) {
       return NextResponse.json(
-        {
-          error:
-            "Could not parse the document structure. Please enter your information manually.",
-        },
+        { error: "Could not parse the document structure. Please try again or enter information manually." },
         { status: 422 }
       );
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
+    if (message.includes("timeout") || message.includes("timed out")) {
+      return NextResponse.json(
+        { error: "Document processing took too long. Please try a smaller PDF or enter information manually." },
+        { status: 504 }
+      );
+    }
+
+    if (message.includes("rate_limit") || message.includes("429")) {
+      return NextResponse.json(
+        { error: "Our AI service is temporarily busy. Please wait a moment and try again." },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json(
-      { error: `Failed to extract data from the document: ${message}` },
+      { error: "Failed to extract data from the document. Please try again or enter information manually." },
       { status: 500 }
     );
   }
@@ -499,8 +547,31 @@ Rules:
   });
 
   const aiText = aiResponse.choices[0]?.message?.content?.trim() || "";
+  if (!aiText) {
+    console.error("[extract-orders] Fallback: AI returned empty response");
+    return NextResponse.json(
+      { error: "AI could not analyze the document. Please try again or enter information manually." },
+      { status: 422 }
+    );
+  }
   const aiJson = extractJson(aiText);
-  const aiData = JSON.parse(aiJson);
+  let aiData;
+  try {
+    aiData = JSON.parse(aiJson);
+  } catch (parseError) {
+    console.error("[extract-orders] Fallback: AI JSON parse failed:", aiText.substring(0, 500));
+    return NextResponse.json(
+      { error: "Could not parse the document structure. Please try again or enter information manually." },
+      { status: 422 }
+    );
+  }
+
+  if (!aiData || typeof aiData !== 'object') {
+    return NextResponse.json(
+      { error: "Could not analyze the document structure. Please enter information manually." },
+      { status: 422 }
+    );
+  }
 
   // ========================================================
   // STEP 4: Build fullOrderContent from blocks + AI classifications
