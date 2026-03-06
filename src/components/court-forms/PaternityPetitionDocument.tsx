@@ -65,6 +65,14 @@ function PrayerItem({ letter, children }: { letter: string; children: React.Reac
   );
 }
 
+// Check if "other orders" is a negative/empty response
+function hasActualOtherOrders(otherOrders: string | undefined): boolean {
+  if (!otherOrders) return false;
+  const normalized = otherOrders.toLowerCase().trim();
+  if (normalized.length === 0) return false;
+  return !['no', 'none', 'n/a', 'na', 'nothing', 'no.', 'none.', 'nope', 'not at this time'].includes(normalized);
+}
+
 export function PaternityPetitionDocument({ data, signature }: PaternityPetitionDocumentProps) {
   const { petitioner, respondent, children, custody, safetyIssues, childSupport, parentingTime, vacationTravel, paternity } = data;
   const pronoun = petitioner.gender === 'male' ? 'his' : 'her';
@@ -219,7 +227,11 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
 
         {/* PARAGRAPH: Domestic Violence */}
         <NumberedParagraph num={++paraNum}>
-          Petitioner alleges that {safetyIssues?.hasDomesticViolence ? 'there has been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member' : 'there has not been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member'}.{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ` Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to ${safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'Respondent'}, who committed domestic violence.` : ''}{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ` Petitioner avers that it would still be in the best interests of the ${childCount === 1 ? 'child' : 'children'} for the parties to share joint legal decision-making.` : ''}
+          {safetyIssues?.hasDomesticViolence
+            ? `Petitioner alleges that there has been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601. ${safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'Respondent'} has committed domestic violence against the other party.`
+            : 'Petitioner alleges that there has not been an act (or acts) of significant domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member.'}
+          {safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ` Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to ${safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'Respondent'}, who committed domestic violence.` : ''}
+          {safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ` Petitioner avers that it would still be in the best interests of the ${childCount === 1 ? 'child' : 'children'} for the parties to share joint legal decision-making.` : ''}
         </NumberedParagraph>
 
         {/* PARAGRAPH: Drug/DUI Conviction */}
@@ -262,7 +274,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               </NumberedParagraph>
               {paternity.priorCustodyCases.map((priorCase) => (
                 <LetteredItem key={priorCase.id} letter={String.fromCharCode(caseLetter++)}>
-                  Regarding {priorCase.childName || 'child'}: {priorCase.proceedingType || 'proceeding'} in {priorCase.stateCounty || 'court'}, Case No. {priorCase.caseNumber || 'unknown'}. {priorCase.courtOrderSummary || ''}
+                  Regarding {priorCase.childName || 'child'}: {priorCase.proceedingType || 'proceeding'} in {priorCase.stateCounty || 'court'}, Case No. {priorCase.caseNumber || 'unknown'}, {priorCase.courtOrderSummary || ''}
                 </LetteredItem>
               ))}
             </View>
@@ -279,7 +291,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               </NumberedParagraph>
               {paternity.affectingCourtActions.map((action) => (
                 <LetteredItem key={action.id} letter={String.fromCharCode(actionLetter++)}>
-                  Regarding {action.childName || 'child'}: {action.proceedingType || 'proceeding'} in {action.stateCounty || 'court'}, Case No. {action.caseNumber || 'unknown'}. {action.courtOrderSummary || ''}
+                  Regarding {action.childName || 'child'}: {action.proceedingType || 'proceeding'} in {action.stateCounty || 'court'}, Case No. {action.caseNumber || 'unknown'}, {action.courtOrderSummary || ''}
                 </LetteredItem>
               ))}
             </View>
@@ -333,7 +345,9 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
             {/* Phone/video contact */}
             {parentingTime.phoneContact && (
               <NumberedParagraph num={++paraNum}>
-                {`Each parent shall have reasonable phone and video contact with the ${childCount === 1 ? 'child' : 'children'} when the ${childCount === 1 ? 'child is' : 'children are'} with the other parent.`}
+                {parentingTime.phoneContact === 'custom' && parentingTime.phoneContactCustom
+                  ? `Phone and video contact schedule: ${parentingTime.phoneContactCustom}`
+                  : `Each parent shall have reasonable phone and video contact with the ${childCount === 1 ? 'child' : 'children'} during normal waking hours when the ${childCount === 1 ? 'child is' : 'children are'} with the other parent.`}
               </NumberedParagraph>
             )}
           </>
@@ -503,14 +517,14 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {/* Health Insurance */}
         <NumberedParagraph num={++paraNum}>
           {paternity?.healthInsuranceProvider === 'respondent'
-            ? `The Court should order Respondent to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}, and that the cost be allocated between the parties in accordance with the Arizona Child Support Guidelines.`
-            : `The Court should order Petitioner to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}, and that the cost be allocated between the parties in accordance with the Arizona Child Support Guidelines.`}
+            ? `The Court should order Respondent to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}.`
+            : `The Court should order Petitioner to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}.`}
         </NumberedParagraph>
 
         {/* OTHER ORDERS */}
-        {data.otherOrders && (
+        {hasActualOtherOrders(data.otherOrders) && (
           <NumberedParagraph num={++paraNum}>
-            Petitioner further requests: {data.otherOrders.replace(/^(The )?Petitioner requests?\s*/i, '')}
+            Petitioner further requests: {data.otherOrders!.trim().replace(/^(The )?Petitioner requests?\s*/i, '')}
           </NumberedParagraph>
         )}
 
@@ -622,60 +636,6 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         />
       </Page>
 
-      {/* VERIFICATION PAGE */}
-      <Page size="LETTER" style={styles.page}>
-        <LineNumbers />
-
-        <View style={styles.courtHeader} wrap={false}>
-          <Text style={{ ...styles.courtHeaderLine, fontSize: 14, fontWeight: 'bold', marginBottom: 16 }}>VERIFICATION</Text>
-        </View>
-
-        <Text style={styles.paragraph}>
-          STATE OF ARIZONA{'\t\t\t\t'})
-        </Text>
-        <Text style={styles.paragraph}>
-          {'\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t'}) ss.
-        </Text>
-        <Text style={styles.paragraph}>
-          County of {petitioner.county || '_____________'}{'\t\t'})
-        </Text>
-
-        <Text style={{ ...styles.paragraph, marginTop: 16 }}>
-          I, {petitioner.name || '___________________________'}, the Petitioner herein, being first duly sworn upon {pronoun} oath, deposes and says:
-        </Text>
-
-        <Text style={{ ...styles.paragraph, marginTop: 12 }}>
-          That I have read the foregoing Petition and know the contents thereof, and the same is true and correct to the best of my knowledge and belief.
-        </Text>
-
-        {/* Signature */}
-        <View style={{ marginTop: 40, marginLeft: 240 }} wrap={false}>
-          {signature ? (
-            <View>
-              <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 200, paddingBottom: 4 }}>
-                <Image src={signature} style={{ height: 40, objectFit: 'contain' }} />
-              </View>
-              <Text style={{ fontSize: 12 }}>{petitioner.name}</Text>
-            </View>
-          ) : (
-            <View>
-              <Text style={{ fontSize: 12 }}>___________________________</Text>
-              <Text style={{ fontSize: 12 }}>{petitioner.name || 'Petitioner'}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ marginTop: 20, marginLeft: 240 }}>
-          <Text style={{ fontSize: 12 }}>Date: ___________________________</Text>
-        </View>
-
-        {/* Page Number */}
-        <Text
-          style={styles.pageNumber}
-          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          fixed
-        />
-      </Page>
     </Document>
   );
 }

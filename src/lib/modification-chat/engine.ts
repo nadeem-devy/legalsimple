@@ -90,6 +90,11 @@ function resolveSentinel(
     return firstIssue ? ISSUE_BLOCKS[firstIssue] : 'complete';
   }
 
+  if (nextId === '__resume_after_upload__') {
+    // After uploading additional orders, return to the pending issue intro
+    return 'complete'; // Fallback; actual routing handled in processAnswer via tempData
+  }
+
   if (nextId === '__next_issue__') {
     const currentBlock = getCurrentIssueBlock(currentQuestionId);
     const nextIssue = getNextSelectedIssue(currentBlock, data.modificationsSelected);
@@ -177,6 +182,34 @@ export function processCurrentQuestion(state: ChatState): ChatState {
         currentQuestionId: 'more_children',
       };
       continue;
+    }
+
+    // --- Redirect to warning question if uploaded orders don't contain info for the selected issue ---
+    if (
+      currentState.data.hasUploadedOrders &&
+      currentState.data.extractedOrderData?.sections
+    ) {
+      const issueIntroToWarning: Record<string, { issueType: string; warningId: string }> = {
+        ldm_intro: { issueType: 'legal_decision_making', warningId: 'ldm_missing_warning' },
+        pt_intro: { issueType: 'parenting_time', warningId: 'pt_missing_warning' },
+        cs_intro: { issueType: 'child_support', warningId: 'cs_missing_warning' },
+      };
+      const mapping = issueIntroToWarning[questionId];
+      if (mapping) {
+        const hasSection = currentState.data.extractedOrderData.sections.some(
+          (s) => s.type === mapping.issueType
+        );
+        if (!hasSection) {
+          // Redirect to the warning question (which has options: Continue manually / Upload additional orders)
+          // Store which issue intro to return to after upload
+          currentState = {
+            ...currentState,
+            currentQuestionId: mapping.warningId,
+            tempItemData: { ...currentState.tempItemData, pendingIssueIntro: questionId },
+          };
+          continue;
+        }
+      }
     }
 
     // --- Build question text ---
@@ -374,6 +407,11 @@ export function processAnswer(state: ChatState, answer: string): ChatState {
   // Determine next question
   let nextQuestionId = getNextQuestion(question, answer);
 
+  // After uploading additional orders, route back to the pending issue intro
+  if (nextQuestionId === '__resume_after_upload__' && state.tempItemData.pendingIssueIntro) {
+    nextQuestionId = state.tempItemData.pendingIssueIntro as string;
+  }
+
   // Resolve sentinel values for dynamic issue routing
   if (nextQuestionId) {
     nextQuestionId = resolveSentinel(
@@ -417,6 +455,59 @@ function updateDataFromAnswer(
   let newTempData = { ...tempData };
 
   switch (questionId) {
+    // Upload Additional Orders (from missing section warning)
+    case 'upload_additional_orders': {
+      if (answer && answer !== 'skip') {
+        try {
+          const parsed = JSON.parse(answer);
+          const { _storagePath, ...rest } = parsed;
+          const extracted = rest as ExtractedOrderData;
+          // Merge new sections into existing extracted data
+          if (data.extractedOrderData) {
+            const existingSections = data.extractedOrderData.sections || [];
+            const newSections = extracted.sections || [];
+            data.extractedOrderData = {
+              ...data.extractedOrderData,
+              sections: [...existingSections, ...newSections],
+            };
+            // Merge full order content if present
+            if (extracted.fullOrderContent) {
+              data.extractedOrderData.fullOrderContent = [
+                ...(data.extractedOrderData.fullOrderContent || []),
+                ...extracted.fullOrderContent,
+              ];
+            }
+          } else {
+            data.extractedOrderData = extracted;
+          }
+          // Pre-fill section-specific fields from newly extracted sections
+          if (extracted.sections) {
+            for (const section of extracted.sections) {
+              if (section.type === 'legal_decision_making') {
+                if (section.orderDate) data.ldm_orderDate = section.orderDate;
+                if (section.pageNumber) data.ldm_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.ldm_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.ldm_currentOrderText = section.verbatimText;
+              } else if (section.type === 'parenting_time') {
+                if (section.orderDate) data.pt_orderDate = section.orderDate;
+                if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
+              } else if (section.type === 'child_support') {
+                if (section.orderDate) data.cs_orderDate = section.orderDate;
+                if (section.pageNumber) data.cs_pageNumber = `Pg. ${section.pageNumber}`;
+                if (section.paragraphNumber) data.cs_paragraphNumber = section.paragraphNumber;
+                if (section.verbatimText) data.cs_currentOrderText = section.verbatimText;
+              }
+            }
+          }
+        } catch {
+          // If JSON parse fails, skip — user proceeds manually
+        }
+      }
+      break;
+    }
+
     // Upload Orders
     case 'upload_orders': {
       if (answer && answer !== 'skip') {
@@ -585,6 +676,18 @@ function updateDataFromAnswer(
       break;
     case 'pt_supervised_reason':
       data.pt_supervisedReason = answer;
+      break;
+    case 'pt_modify_holidays':
+      data.pt_modifyHolidays = answer.toLowerCase() === 'yes';
+      break;
+    case 'pt_holiday_changes':
+      data.pt_holidayChanges = answer;
+      break;
+    case 'pt_modify_breaks':
+      data.pt_modifyBreaks = answer.toLowerCase() === 'yes';
+      break;
+    case 'pt_break_changes':
+      data.pt_breakChanges = answer;
       break;
 
     // Child Support fields

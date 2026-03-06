@@ -228,6 +228,30 @@ export function processAnswer(state: ChatState, answer: string): ChatState {
     }
   }
 
+  // Existing order date validation - can't be before earliest child's DOB (Issue 1)
+  if (question.id === 'existing_order_date' && newData.children.length > 0) {
+    const orderDate = new Date(answer);
+    const earliestChildDob = newData.children.reduce((earliest, child) => {
+      const dob = new Date(child.dateOfBirth);
+      return dob < earliest ? dob : earliest;
+    }, new Date(newData.children[0].dateOfBirth));
+
+    if (orderDate < earliestChildDob) {
+      const errorMsg = createMessage(
+        'assistant',
+        `The date of the prior child support order cannot be before the birth of your earliest minor child (${earliestChildDob.toLocaleDateString()}). Please re-enter the correct date.`,
+        'existing_order_date_validation'
+      );
+      return {
+        ...state,
+        messages: [...newMessages, errorMsg],
+        data: { ...newData, existingOrderDate: '' },
+        currentQuestionId: 'existing_order_date',
+        tempItemData: newTempData,
+      };
+    }
+  }
+
   // Handle stop questions
   if (question.type === 'stop') {
     return {
@@ -332,11 +356,29 @@ function updateDataFromAnswer(
     case 'other_party_mailing_address':
       data.otherPartyMailingAddress = answer;
       break;
+    case 'other_party_ssn4_known':
+      data.otherPartySsn4Known = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.otherPartySsn4 = 'Unknown';
+      }
+      break;
     case 'other_party_ssn4':
       data.otherPartySsn4 = answer;
       break;
+    case 'other_party_phone_known':
+      data.otherPartyPhoneKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.otherPartyPhone = 'Unknown';
+      }
+      break;
     case 'other_party_phone':
       data.otherPartyPhone = answer;
+      break;
+    case 'other_party_email_known':
+      data.otherPartyEmailKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.otherPartyEmail = 'Unknown';
+      }
       break;
     case 'other_party_email':
       data.otherPartyEmail = answer;
@@ -374,23 +416,8 @@ function updateDataFromAnswer(
     case 'children_reside_with':
       data.childrenResideWith = answer as 'petitioner' | 'respondent' | 'both';
       break;
-    case 'children_address_street':
-      data.childrenAddressStreet = answer;
-      break;
-    case 'children_address_city':
-      data.childrenAddressCity = answer;
-      break;
-    case 'children_address_state':
-      data.childrenAddressState = answer;
-      break;
-    case 'children_address_zip':
-      data.childrenAddressZip = answer;
-      // Compose full address from structured fields
-      data.childrenCurrentAddress = [
-        data.childrenAddressStreet,
-        data.childrenAddressCity,
-        `${data.childrenAddressState || 'AZ'} ${answer}`,
-      ].filter(Boolean).join(', ');
+    case 'children_address':
+      data.childrenCurrentAddress = answer;
       break;
 
     // Paternity Reason
@@ -413,6 +440,9 @@ function updateDataFromAnswer(
       break;
     case 'existing_order_modification':
       data.existingOrderNeedsModification = answer.toLowerCase() === 'yes';
+      break;
+    case 'existing_order_modify_how':
+      data.existingOrderModifyHow = answer;
       break;
 
     // Past Child Support
@@ -454,8 +484,11 @@ function updateDataFromAnswer(
     case 'prior_case_child_name':
       newTempData.priorCaseChildName = answer;
       break;
-    case 'prior_case_state_county':
-      newTempData.priorCaseStateCounty = answer;
+    case 'prior_case_state':
+      newTempData.priorCaseState = answer;
+      break;
+    case 'prior_case_county':
+      newTempData.priorCaseCounty = answer;
       break;
     case 'prior_case_number':
       newTempData.priorCaseNumber = answer;
@@ -464,10 +497,12 @@ function updateDataFromAnswer(
       newTempData.priorCaseType = answer;
       break;
     case 'prior_case_summary': {
+      const priorState = (newTempData.priorCaseState as string) || '';
+      const priorCounty = (newTempData.priorCaseCounty as string) || '';
       const newCase: PriorCourtCase = {
         id: `prior-${Date.now()}`,
         childName: (newTempData.priorCaseChildName as string) || '',
-        stateCounty: (newTempData.priorCaseStateCounty as string) || '',
+        stateCounty: priorCounty ? `${priorState}, ${priorCounty} County` : priorState,
         caseNumber: (newTempData.priorCaseNumber as string) || '',
         proceedingType: (newTempData.priorCaseType as string) || '',
         courtOrderSummary: answer,
@@ -484,8 +519,11 @@ function updateDataFromAnswer(
     case 'affecting_case_child_name':
       newTempData.affectingCaseChildName = answer;
       break;
-    case 'affecting_case_state_county':
-      newTempData.affectingCaseStateCounty = answer;
+    case 'affecting_case_state':
+      newTempData.affectingCaseState = answer;
+      break;
+    case 'affecting_case_county':
+      newTempData.affectingCaseCounty = answer;
       break;
     case 'affecting_case_number':
       newTempData.affectingCaseNumber = answer;
@@ -494,10 +532,12 @@ function updateDataFromAnswer(
       newTempData.affectingCaseType = answer;
       break;
     case 'affecting_case_summary': {
+      const affState = (newTempData.affectingCaseState as string) || '';
+      const affCounty = (newTempData.affectingCaseCounty as string) || '';
       const newAction: PriorCourtCase = {
         id: `affecting-${Date.now()}`,
         childName: (newTempData.affectingCaseChildName as string) || '',
-        stateCounty: (newTempData.affectingCaseStateCounty as string) || '',
+        stateCounty: affCounty ? `${affState}, ${affCounty} County` : affState,
         caseNumber: (newTempData.affectingCaseNumber as string) || '',
         proceedingType: (newTempData.affectingCaseType as string) || '',
         courtOrderSummary: answer,

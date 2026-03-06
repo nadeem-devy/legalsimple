@@ -148,6 +148,10 @@ export interface ModificationChatData {
   pt_supervised: boolean;
   pt_supervisedReason: string;
   pt_currentOrderText: string;
+  pt_modifyHolidays: boolean;
+  pt_holidayChanges: string;
+  pt_modifyBreaks: boolean;
+  pt_breakChanges: string;
 
   // Child Support modification
   cs_orderDate: string;
@@ -196,6 +200,10 @@ export const initialModificationChatData: ModificationChatData = {
   pt_supervised: false,
   pt_supervisedReason: '',
   pt_currentOrderText: '',
+  pt_modifyHolidays: false,
+  pt_holidayChanges: '',
+  pt_modifyBreaks: false,
+  pt_breakChanges: '',
 
   cs_orderDate: '',
   cs_courtName: '',

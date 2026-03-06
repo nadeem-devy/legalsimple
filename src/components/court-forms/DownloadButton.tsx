@@ -2,22 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2, CheckCircle, AlertCircle, Scale, ShieldAlert, Send, Ban, CreditCard, HeartPulse, Users } from "lucide-react";
+import { Download, Loader2, CheckCircle, AlertCircle, Scale, ShieldAlert, Send, Ban, CreditCard, HeartPulse, Users, FileText } from "lucide-react";
 import { SignaturePad } from "./SignaturePad";
 
-type PDFFormat = 'summary' | 'pleading' | 'sensitive_data' | 'summons' | 'preliminary_injunction' | 'notice_creditors' | 'health_insurance' | 'parent_info_program' | 'petition' | 'modification_petition';
+type PDFFormat = 'summary' | 'pleading' | 'sensitive_data' | 'summons' | 'preliminary_injunction' | 'notice_creditors' | 'health_insurance' | 'parent_info_program' | 'petition' | 'modification_petition' | 'original_order';
 
 interface DownloadButtonProps {
   caseId: string;
   caseName: string;
   petitionerName?: string;
   caseSubType?: string;
+  wantsInjunction?: boolean;
 }
 
 // Key for storing signature in localStorage
 const SIGNATURE_STORAGE_KEY = "legalsimple_petitioner_signature";
 
-export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner", caseSubType }: DownloadButtonProps) {
+export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner", caseSubType, wantsInjunction = true }: DownloadButtonProps) {
   const hasChildren = caseSubType === 'divorce_with_children' || caseSubType === 'establish_paternity';
   const isPaternity = caseSubType === 'establish_paternity';
   const isModification = caseSubType === 'modification';
@@ -38,7 +39,7 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
 
   const handleDownloadClick = (format: PDFFormat) => {
     setPendingFormat(format);
-    if (format === 'sensitive_data' || format === 'summons' || format === 'preliminary_injunction' || format === 'notice_creditors' || format === 'health_insurance' || format === 'parent_info_program' || format === 'petition') {
+    if (format === 'sensitive_data' || format === 'summons' || format === 'preliminary_injunction' || format === 'notice_creditors' || format === 'health_insurance' || format === 'parent_info_program' || format === 'petition' || format === 'original_order') {
       // These forms don't need a signature
       downloadPdf('', format);
     } else {
@@ -102,6 +103,7 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
         health_insurance: `health-insurance-notice-${caseName}.pdf`,
         parent_info_program: `parent-info-program-${caseName}.pdf`,
         modification_petition: `petition-to-modify-${caseName}.pdf`,
+        original_order: `original-court-order-${caseName}.pdf`,
       };
       link.download = filenameMap[format];
       document.body.appendChild(link);
@@ -154,49 +156,101 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             )}
           </Button>
 
-          {/* Sensitive Data Coversheet Button */}
-          <Button
-            onClick={() => handleDownloadClick('sensitive_data')}
-            disabled={isLoading !== null}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
-            title="Confidential sensitive data coversheet for the court"
-          >
-            {isLoading === 'sensitive_data' ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Generating...</span>
-              </>
-            ) : (
-              <>
-                <ShieldAlert className="h-4 w-4" />
-                <span className="hidden sm:inline">Sensitive Data</span>
-              </>
-            )}
-          </Button>
+          {/* Preliminary Injunction Button - only show if user selected injunction, not for modification */}
+          {wantsInjunction && !isModification && (
+            <Button
+              onClick={() => handleDownloadClick('preliminary_injunction')}
+              disabled={isLoading !== null}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+              title="Preliminary Injunction per A.R.S. §25-315"
+            >
+              {isLoading === 'preliminary_injunction' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Ban className="h-4 w-4" />
+                  <span className="hidden sm:inline">Injunction</span>
+                </>
+              )}
+            </Button>
+          )}
 
-          {/* Summons Button */}
-          <Button
-            onClick={() => handleDownloadClick('summons')}
-            disabled={isLoading !== null}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
-            title="Official court summons to serve on the other party"
-          >
-            {isLoading === 'summons' ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Generating...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Summons</span>
-              </>
-            )}
-          </Button>
+          {/* Original Court Order Button - Modification only */}
+          {isModification && (
+            <Button
+              onClick={() => handleDownloadClick('original_order')}
+              disabled={isLoading !== null}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              title="Download the original uploaded court order"
+            >
+              {isLoading === 'original_order' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Original Order</span>
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Sensitive Data Coversheet Button - Not for Modification */}
+          {!isModification && (
+            <Button
+              onClick={() => handleDownloadClick('sensitive_data')}
+              disabled={isLoading !== null}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
+              title="Confidential sensitive data coversheet for the court"
+            >
+              {isLoading === 'sensitive_data' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sensitive Data</span>
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Summons Button - Not for Modification */}
+          {!isModification && (
+            <Button
+              onClick={() => handleDownloadClick('summons')}
+              disabled={isLoading !== null}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+              title="Official court summons to serve on the other party"
+            >
+              {isLoading === 'summons' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span className="hidden sm:inline">Summons</span>
+                </>
+              )}
+            </Button>
+          )}
 
           {/* Notice Regarding Creditors Button - Divorce only */}
           {!isPaternity && !isModification && (
@@ -270,27 +324,6 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Preliminary Injunction Button - Not for Modification */}
-          {!isModification && <Button
-            onClick={() => handleDownloadClick('preliminary_injunction')}
-            disabled={isLoading !== null}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
-            title="Preliminary Injunction per A.R.S. §25-315"
-          >
-            {isLoading === 'preliminary_injunction' ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Generating...</span>
-              </>
-            ) : (
-              <>
-                <Ban className="h-4 w-4" />
-                <span className="hidden sm:inline">Injunction</span>
-              </>
-            )}
-          </Button>}
         </div>
 
         {status === "success" && (

@@ -85,7 +85,8 @@ function formatMaintenanceReasonSentence(reason: string, party: string): string 
 function hasActualOtherOrders(otherOrders: string | undefined): boolean {
   if (!otherOrders) return false;
   const normalized = otherOrders.toLowerCase().trim();
-  return !['no', 'none', 'n/a', 'na', 'nothing', 'no.', 'none.'].includes(normalized);
+  if (normalized.length === 0) return false;
+  return !['no', 'none', 'n/a', 'na', 'nothing', 'no.', 'none.', 'nope', 'not at this time'].includes(normalized);
 }
 
 export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {

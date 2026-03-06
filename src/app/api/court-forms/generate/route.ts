@@ -17,7 +17,7 @@ import { mapIntakeDataToPDF } from "@/lib/court-forms/data-mapper";
 import { autoCorrectIntakeData } from "@/lib/court-forms/text-cleanup";
 
 // PDF Format types
-type PDFFormat = 'summary' | 'pleading' | 'sensitive_data' | 'summons' | 'preliminary_injunction' | 'notice_creditors' | 'petition' | 'health_insurance' | 'parent_info_program' | 'modification_petition';
+type PDFFormat = 'summary' | 'pleading' | 'sensitive_data' | 'summons' | 'preliminary_injunction' | 'notice_creditors' | 'petition' | 'health_insurance' | 'parent_info_program' | 'modification_petition' | 'original_order';
 
 // Demo data for mock mode testing
 const DEMO_INTAKE_DATA = {
@@ -172,6 +172,11 @@ export async function POST(request: NextRequest) {
       intakeData = intakeSession.collected_data as Record<string, unknown>;
     }
 
+    // Debug: log raw intake data fullOrderContent count
+    const rawExtracted = (intakeData as Record<string, unknown>)?.extractedOrderData as Record<string, unknown> | undefined;
+    const rawBlocks = rawExtracted?.fullOrderContent;
+    console.log(`[mod-petition] RAW from DB: extractedOrderData keys=${rawExtracted ? Object.keys(rawExtracted).join(',') : 'null'}, fullOrderContent=${Array.isArray(rawBlocks) ? rawBlocks.length : typeof rawBlocks} blocks`);
+
     // Auto-correct spelling in free-text fields before PDF generation
     const correctedData = autoCorrectIntakeData(intakeData as Record<string, unknown>);
 
@@ -256,6 +261,34 @@ export async function POST(request: NextRequest) {
         })
       );
       filename = `petition-to-modify-${caseId}.pdf`;
+    } else if (format === 'original_order') {
+      // Return the original uploaded court order PDF
+      const orderPath = pdfData.modification?.uploadedOrderPath;
+      if (orderPath) {
+        const adminClient = createRawClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        const { data: fileData, error: downloadError } = await adminClient.storage
+          .from("court-orders")
+          .download(orderPath);
+
+        if (!downloadError && fileData) {
+          const arrayBuffer = await fileData.arrayBuffer();
+          pdfBuffer = Buffer.from(arrayBuffer);
+          filename = `original-court-order-${caseId}.pdf`;
+        } else {
+          return NextResponse.json(
+            { error: "Could not retrieve original court order" },
+            { status: 404 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: "No uploaded court order found for this case" },
+          { status: 404 }
+        );
+      }
     } else if (format === 'pleading' && subType === 'establish_paternity') {
       pdfBuffer = await renderToBuffer(
         PaternityPetitionDocument({
@@ -293,6 +326,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("PDF generation error:", error);
+    if (error instanceof Error) {
+      console.error("Stack trace:", error.stack);
+    }
     return NextResponse.json(
       { error: "Failed to generate PDF", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }

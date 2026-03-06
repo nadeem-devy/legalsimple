@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { DateDropdownPicker } from "@/components/ui/date-dropdown-picker";
 import { format, parse, isValid } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -865,39 +866,12 @@ export function DivorceChatInterface({
       case "date":
         return (
           <div className="flex gap-3">
-            <Popover open={dateOpen} onOpenChange={setDateOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "flex-1 h-12 justify-start text-left font-normal rounded-xl border-slate-200",
-                    !dateValue && "text-slate-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-5 w-5 text-slate-400" />
-                  {dateValue ? format(dateValue, "MMMM d, yyyy") : "Select date..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateValue}
-                  onSelect={(date) => {
-                    setDateValue(date);
-                    setDateOpen(false);
-                  }}
-                  initialFocus
-                  captionLayout="dropdown"
-                  fromYear={1940}
-                  toYear={new Date().getFullYear()}
-                  defaultMonth={
-                    currentQuestion?.id === 'date_of_birth' || currentQuestion?.id === 'spouse_date_of_birth'
-                      ? new Date(1990, 0)
-                      : undefined
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+            <DateDropdownPicker
+              value={dateValue}
+              onChange={setDateValue}
+              fromYear={1940}
+              toYear={new Date().getFullYear()}
+            />
             <Button
               onClick={handleSubmit}
               disabled={!dateValue}

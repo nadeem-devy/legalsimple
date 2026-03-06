@@ -949,6 +949,8 @@ async function handleModificationChatIntake(
     const countyMatch = courtName.match(/^(.+?)\s+County/i);
     const county = countyMatch ? countyMatch[1] : '';
 
+    const baseCaseNumber = chatData.caseNumber || "";
+
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
       status: "pending_review",
@@ -959,19 +961,41 @@ async function handleModificationChatIntake(
       defendant_type: "individual",
       state: "AZ",
       county: county,
-      case_number: chatData.caseNumber || "",
+      case_number: baseCaseNumber,
       sub_type: "modification",
       ai_summary: generateModificationChatSummary(chatData),
       complexity_score: 4,
       lawyer_recommended: false,
     };
 
-    const { data: updatedCase, error: updateError } = await supabase
+    let updatedCase = null;
+    let updateError = null;
+
+    // Try with original case number first
+    const result1 = await supabase
       .from("cases")
       .update(updateData)
       .eq("id", targetCaseId)
       .select()
       .single();
+
+    if (result1.error?.code === "23505") {
+      // Duplicate case_number — append timestamp to make unique
+      updateData.case_number = baseCaseNumber
+        ? `${baseCaseNumber}-${Date.now().toString(36)}`
+        : `MOD-${Date.now().toString(36)}`;
+      const result2 = await supabase
+        .from("cases")
+        .update(updateData)
+        .eq("id", targetCaseId)
+        .select()
+        .single();
+      updatedCase = result2.data;
+      updateError = result2.error;
+    } else {
+      updatedCase = result1.data;
+      updateError = result1.error;
+    }
 
     if (updateError) {
       console.error("Error updating case:", updateError);

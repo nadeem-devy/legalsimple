@@ -276,6 +276,10 @@ export interface NormalizedPDFData {
       supervised: boolean;
       supervisedReason: string;
       currentOrderText: string;
+      modifyHolidays: boolean;
+      holidayChanges: string;
+      modifyBreaks: boolean;
+      breakChanges: string;
     };
     // Child Support
     cs?: {
@@ -855,6 +859,10 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         supervised: data.pt_supervised || false,
         supervisedReason: data.pt_supervisedReason || '',
         currentOrderText: data.pt_currentOrderText || '',
+        modifyHolidays: data.pt_modifyHolidays || false,
+        holidayChanges: data.pt_holidayChanges || '',
+        modifyBreaks: data.pt_modifyBreaks || false,
+        breakChanges: data.pt_breakChanges || '',
       } : undefined,
 
       cs: modificationsSelected.includes('child_support') ? {
@@ -1009,7 +1017,7 @@ export function formatJurisdictionReason(reason: string): string {
 
 export function formatPaternityReason(reason: string, otherReason?: string, biologicalFather?: string): string {
   const fatherParty = biologicalFather === 'significant_other' ? 'Respondent' : 'Petitioner';
-  switch (reason) {
+  switch (reason.toLowerCase()) {
     case 'signed_affidavit': return `Both parties signed an Affidavit of Paternity acknowledging ${fatherParty} as the natural father of the minor child(ren). A copy is attached to this Petition`;
     case 'named_on_birth_cert': return `${fatherParty} is named as the natural father on the minor child(ren)'s birth certificate. A copy is attached to this Petition`;
     case 'dna_testing': return `DNA testing indicates that ${fatherParty} is the natural father of the minor child(ren). A copy of the test results is attached to this Petition`;

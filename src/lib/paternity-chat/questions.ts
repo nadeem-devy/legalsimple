@@ -7,6 +7,18 @@ export const ARIZONA_COUNTIES = [
   'Santa Cruz', 'Yavapai', 'Yuma'
 ];
 
+// US States
+export const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
+  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
+  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
+  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
+  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
+  'Wisconsin', 'Wyoming', 'District of Columbia',
+];
+
 // Holiday options for scheduling
 const HOLIDAY_OPTIONS = [
   { value: 'petitioner_even', label: 'Petitioner in even years' },
@@ -195,7 +207,7 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'other_party_mailing_address',
-      'no': 'other_party_ssn4',
+      'no': 'other_party_ssn4_known',
     },
   },
   {
@@ -205,17 +217,38 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     placeholder: '456 Oak Avenue, Phoenix, AZ 85002',
     tooltip: 'This address is used to serve your significant other with the court papers.',
     required: true,
-    nextQuestionId: 'other_party_ssn4',
+    nextQuestionId: 'other_party_ssn4_known',
+  },
+  {
+    id: 'other_party_ssn4_known',
+    type: 'yesno',
+    question: "Do you know the last 4 digits of your significant other's Social Security number?",
+    tooltip: 'If known, this helps identify your significant other in court records.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'other_party_ssn4',
+      'no': 'other_party_phone_known',
+    },
   },
   {
     id: 'other_party_ssn4',
     type: 'ssn4',
     question: "What are the last 4 digits of your significant other's Social Security number?",
-    description: 'If you don\'t know, you can enter "0000".',
     placeholder: '5678',
-    tooltip: 'If known, this helps identify your significant other in court records.',
+    tooltip: 'This helps identify your significant other in court records.',
     required: true,
-    nextQuestionId: 'other_party_phone',
+    nextQuestionId: 'other_party_phone_known',
+  },
+  {
+    id: 'other_party_phone_known',
+    type: 'yesno',
+    question: "Do you know your significant other's phone number?",
+    tooltip: 'This may be used for communication regarding the case.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'other_party_phone',
+      'no': 'other_party_email_known',
+    },
   },
   {
     id: 'other_party_phone',
@@ -223,17 +256,27 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     question: "What is your significant other's best contact phone number?",
     placeholder: '(602) 555-0456',
     tooltip: 'This may be used for communication regarding the case.',
-    required: false,
-    nextQuestionId: 'other_party_email',
+    required: true,
+    nextQuestionId: 'other_party_email_known',
+  },
+  {
+    id: 'other_party_email_known',
+    type: 'yesno',
+    question: "Do you know your significant other's email address?",
+    tooltip: 'An email address can help facilitate communication during the case.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'other_party_email',
+      'no': 'other_party_gender',
+    },
   },
   {
     id: 'other_party_email',
     type: 'text',
     question: "What is your significant other's email address?",
-    placeholder: 'other@example.com or type "unknown"',
-    description: 'If you don\'t know, you can skip this field or type "unknown".',
+    placeholder: 'other@example.com',
     tooltip: 'An email address can help facilitate communication during the case.',
-    required: false,
+    required: true,
     nextQuestionId: 'other_party_gender',
   },
   {
@@ -348,46 +391,19 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     ],
     tooltip: 'This helps establish the current living arrangement for custody purposes.',
     required: true,
-    nextQuestionId: 'children_address_street',
+    nextQuestionId: 'children_address',
   },
 
   // =====================
-  // CHILDREN'S RESIDENCE (Structured fields)
+  // CHILDREN'S RESIDENCE
   // =====================
   {
-    id: 'children_address_street',
-    type: 'text',
-    question: 'What is the street address where the child/children reside?',
-    placeholder: '123 Main Street',
+    id: 'children_address',
+    type: 'address',
+    question: 'What is the address where the child/children currently reside?',
+    placeholder: '123 Main Street, Phoenix, AZ 85001',
     tooltip: 'The court requires the current residence of the minor child/children.',
     required: true,
-    nextQuestionId: 'children_address_city',
-  },
-  {
-    id: 'children_address_city',
-    type: 'text',
-    question: 'What city?',
-    placeholder: 'Phoenix',
-    required: true,
-    nextQuestionId: 'children_address_state',
-  },
-  {
-    id: 'children_address_state',
-    type: 'select',
-    question: 'What state?',
-    options: [
-      { value: 'AZ', label: 'Arizona' },
-    ],
-    required: true,
-    nextQuestionId: 'children_address_zip',
-  },
-  {
-    id: 'children_address_zip',
-    type: 'text',
-    question: 'What is the zip code?',
-    placeholder: '85001',
-    required: true,
-    validation: { minLength: 5, maxLength: 5, pattern: '^[0-9]{5}$' },
     nextQuestionId: 'paternity_reason',
   },
 
@@ -484,6 +500,18 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     type: 'yesno',
     question: 'Does this order need to be modified?',
     tooltip: 'If circumstances have changed since the order was entered, you may request modification.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'existing_order_modify_how',
+      'no': 'past_child_support_check',
+    },
+  },
+  {
+    id: 'existing_order_modify_how',
+    type: 'textarea',
+    question: 'How should the existing child support order be modified? Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'e.g., The existing order should be modified because my income has decreased significantly since the order was entered...',
+    tooltip: 'Describe what changes you are requesting and why. Common reasons include changes in income, changes in parenting time, or changes in the needs of the child(ren).',
     required: true,
     nextQuestionId: 'past_child_support_check',
   },
@@ -605,16 +633,26 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
   {
     id: 'prior_case_child_name',
     type: 'text',
-    question: 'Please state the name of the child:',
+    question: 'Please state the name of the minor child for which you have been a party or witness involving physical custody, legal decision making, or parenting time.',
     placeholder: 'e.g., Emily Jane Smith',
     required: true,
-    nextQuestionId: 'prior_case_state_county',
+    nextQuestionId: 'prior_case_state',
   },
   {
-    id: 'prior_case_state_county',
-    type: 'text',
-    question: 'Please identify the State and county:',
-    placeholder: 'e.g., Arizona, Maricopa County',
+    id: 'prior_case_state',
+    type: 'select',
+    question: 'In which state was this court case?',
+    options: US_STATES.map(state => ({ value: state, label: state })),
+    tooltip: 'Select the state where the prior custody case was filed or heard.',
+    required: true,
+    nextQuestionId: 'prior_case_county',
+  },
+  {
+    id: 'prior_case_county',
+    type: 'select',
+    question: 'In which county was this court case?',
+    options: ARIZONA_COUNTIES.map(county => ({ value: county, label: `${county} County` })),
+    tooltip: 'Select the county where the prior custody case was filed or heard.',
     required: true,
     nextQuestionId: 'prior_case_number',
   },
@@ -672,13 +710,23 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     question: 'Please state the name of the child:',
     placeholder: 'e.g., Emily Jane Smith',
     required: true,
-    nextQuestionId: 'affecting_case_state_county',
+    nextQuestionId: 'affecting_case_state',
   },
   {
-    id: 'affecting_case_state_county',
-    type: 'text',
-    question: 'Please identify the State and county:',
-    placeholder: 'e.g., Arizona, Maricopa County',
+    id: 'affecting_case_state',
+    type: 'select',
+    question: 'In which state was this court action?',
+    options: US_STATES.map(state => ({ value: state, label: state })),
+    tooltip: 'Select the state where the court action was filed or heard.',
+    required: true,
+    nextQuestionId: 'affecting_case_county',
+  },
+  {
+    id: 'affecting_case_county',
+    type: 'select',
+    question: 'In which county was this court action?',
+    options: ARIZONA_COUNTIES.map(county => ({ value: county, label: `${county} County` })),
+    tooltip: 'Select the county where the court action was filed or heard.',
     required: true,
     nextQuestionId: 'affecting_case_number',
   },
@@ -724,6 +772,7 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     id: 'other_custody_claimants_check',
     type: 'yesno',
     question: 'Do you know any other person other than the parties involved in this Petition who has physical custody or who claims legal decision making or parenting time rights to any of the minor children identified in this petition?',
+    tooltip: 'Please identify the party who you believe has a claim for parenting time/legal decision making orders and their relationship to the minor child.',
     required: true,
     nextQuestionMap: {
       'yes': 'claimant_child_name',

@@ -163,7 +163,7 @@ Return ONLY valid JSON (no markdown, no code fences, no explanation):
       "paragraphNumber": "paragraph number as a string or null",
       "orderDate": "MM/DD/YYYY or null",
       "summary": "brief 1-2 sentence summary",
-      "verbatimText": "exact verbatim text of this section from the order"
+      "verbatimText": "the text of this section, properly formatted for court documents"
     }
   ]
 }
@@ -174,7 +174,15 @@ RULES:
 - In blockClassifications: map each block ID to its topic. Use "other" for general/unrelated blocks.
 - Only classify blocks that are clearly about legal_decision_making, parenting_time, or child_support. Everything else is "other".
 - SECTIONS: Only include sections about legal_decision_making, parenting_time, and child_support.
-- For verbatimText: copy the EXACT text from the provided content for each relevant section.`;
+- For verbatimText: Use the EXACT content from the order — do NOT add, remove, or change any substantive words, facts, dates, names, or legal terms. However, you MUST clean up formatting issues caused by PDF extraction:
+  * Fix broken words that were split across lines (e.g., "par- enting" → "parenting")
+  * Remove stray line numbers from pleading margins (e.g., leading "8 " or "12 ")
+  * Fix irregular spacing (double spaces, missing spaces after punctuation)
+  * Ensure proper sentence capitalization and punctuation
+  * Join sentence fragments that were split across PDF lines into proper flowing paragraphs
+  * Preserve numbered paragraph structure (e.g., "1. ...", "a. ...", "(A) ...")
+  * Keep legal citations exactly as they appear (e.g., "A.R.S. §25-403")
+  The goal is court-acceptable formatting of the SAME content — readable, properly punctuated paragraphs instead of raw OCR line fragments.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -383,6 +391,9 @@ function extractJson(text: string): string {
 }
 
 // Fallback: send PDF directly to GPT-4o for scanned/image PDFs
+// Two-step approach:
+//   1. GPT-4o extracts raw text (every line, every page)
+//   2. Feed through same block-building + classification pipeline as primary path
 async function handleDirectPdfExtraction(
   buffer: Buffer,
   fileName: string,
@@ -390,44 +401,29 @@ async function handleDirectPdfExtraction(
 ) {
   const base64 = buffer.toString("base64");
   const fileDataUrl = `data:application/pdf;base64,${base64}`;
+  const openai = getOpenAI();
 
-  const combinedPrompt = `You are analyzing an Arizona family court order document. Extract ALL information as structured data.
+  // ========================================================
+  // STEP 1: Extract raw text from every page via GPT-4o vision
+  // ========================================================
+  const textExtractionPrompt = `You are a document OCR tool. Extract ALL text from this court order PDF.
 
-Return ONLY valid JSON (no markdown, no code fences):
-{
-  "caseNumber": "string or null",
-  "petitionerName": "string or null",
-  "respondentName": "string or null",
-  "courtName": "string or null",
-  "orderDate": "MM/DD/YYYY or null",
-  "orderTitle": "string or null",
-  "judgeName": "string or null",
-  "children": [{ "name": "string", "dateOfBirth": "MM/DD/YYYY or null" }],
-  "sections": [{
-    "type": "legal_decision_making or parenting_time or child_support or other",
-    "pageNumber": "string or null",
-    "paragraphNumber": "string or null",
-    "orderDate": "MM/DD/YYYY or null",
-    "summary": "brief summary",
-    "verbatimText": "exact text"
-  }],
-  "fullOrderContent": [{
-    "paragraphId": "string",
-    "heading": null,
-    "text": "exact verbatim text",
-    "sectionGroup": "orders",
-    "type": "legal_decision_making or parenting_time or child_support or property or spousal_maintenance or other"
-  }],
-  "confidence": "high"
-}
+OUTPUT FORMAT: Return the text exactly as it appears in the document. Separate pages with a line containing only "---PAGE_BREAK---". Include EVERY line of text. Do NOT summarize, paraphrase, or skip any content. Copy the text VERBATIM.
 
-Extract EVERY paragraph in order. Copy text EXACTLY. Do not summarize. Do not skip paragraphs.`;
+Rules:
+- Include headers, footers, page numbers, signatures, everything
+- Preserve paragraph breaks as blank lines
+- Do NOT add any commentary or explanation
+- Do NOT wrap in code fences or JSON
+- Just output the raw text, page by page`;
 
-  const response = await getOpenAI().chat.completions.create({
+  console.log("[extract-orders] Fallback: extracting text via GPT-4o vision...");
+
+  const textResponse = await openai.chat.completions.create({
     model: "gpt-4o",
     max_tokens: 16384,
     messages: [
-      { role: "system", content: combinedPrompt },
+      { role: "system", content: textExtractionPrompt },
       {
         role: "user",
         content: [
@@ -440,29 +436,123 @@ Extract EVERY paragraph in order. Copy text EXACTLY. Do not summarize. Do not sk
           },
           {
             type: "text",
-            text: "Extract all structured information from this court order.",
+            text: "Extract ALL text from every page of this document. Do not skip anything.",
           },
         ],
       },
     ],
   });
 
-  const responseText =
-    response.choices[0]?.message?.content?.trim() || "";
-  if (!responseText) {
+  const rawText = textResponse.choices[0]?.message?.content?.trim() || "";
+  if (!rawText || rawText.length < 50) {
     return NextResponse.json(
-      {
-        error:
-          "Could not analyze the document. Please enter your information manually.",
-      },
+      { error: "Could not extract text from the document. Please enter your information manually." },
       { status: 422 }
     );
   }
 
-  const extractedData = JSON.parse(extractJson(responseText));
+  // ========================================================
+  // STEP 2: Parse extracted text into pages and blocks
+  // ========================================================
+  const pageTexts = rawText.split(/---PAGE_BREAK---/i);
+  interface TextBlock {
+    id: string;
+    text: string;
+    pageNum: number;
+  }
+  const blocks: TextBlock[] = [];
+
+  for (let pageIdx = 0; pageIdx < pageTexts.length; pageIdx++) {
+    const pageText = pageTexts[pageIdx];
+    const lines = pageText.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+    for (const line of lines) {
+      blocks.push({
+        id: `b-${blocks.length}`,
+        text: line,
+        pageNum: pageIdx + 1,
+      });
+    }
+  }
+
+  console.log(
+    `[extract-orders] Fallback OCR: ${pageTexts.length} pages, ${blocks.length} blocks, ${rawText.length} chars`
+  );
+
+  // ========================================================
+  // STEP 3: AI classification — same as primary path
+  // ========================================================
+  const fullText = blocks.map((b) => b.text).join("\n");
+  const blockSummary = blocks
+    .map((b) => `[${b.id}] (page ${b.pageNum}): ${b.text.substring(0, 150)}${b.text.length > 150 ? "..." : ""}`)
+    .join("\n");
+
+  const aiResponse = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_tokens: 8192,
+    messages: [
+      { role: "system", content: EXTRACTION_PROMPT },
+      {
+        role: "user",
+        content: `Here is the full text of the court order:\n\n${fullText}\n\n---\n\nHere are the block IDs extracted from the document:\n${blockSummary}`,
+      },
+    ],
+  });
+
+  const aiText = aiResponse.choices[0]?.message?.content?.trim() || "";
+  const aiJson = extractJson(aiText);
+  const aiData = JSON.parse(aiJson);
+
+  // ========================================================
+  // STEP 4: Build fullOrderContent from blocks + AI classifications
+  // ========================================================
+  const classifications: Record<string, string> = aiData.blockClassifications || {};
+  const fullOrderContent = blocks.map((b) => ({
+    paragraphId: b.id,
+    heading: null,
+    text: b.text,
+    sectionGroup: "orders" as const,
+    type: (classifications[b.id] || "other") as
+      | "legal_decision_making"
+      | "parenting_time"
+      | "child_support"
+      | "property"
+      | "spousal_maintenance"
+      | "other",
+    pageNum: b.pageNum,
+  }));
+
+  const extractedData = {
+    caseNumber: aiData.caseNumber,
+    petitionerName: aiData.petitionerName,
+    respondentName: aiData.respondentName,
+    courtName: aiData.courtName,
+    orderDate: aiData.orderDate,
+    orderTitle: aiData.orderTitle,
+    judgeName: aiData.judgeName,
+    children: aiData.children || [],
+    sections: aiData.sections || [],
+    fullOrderContent,
+    confidence: "high" as const,
+  };
+
   const storagePath = await storePdf(buffer, fileName, userId);
 
-  return NextResponse.json({ extractedData, storagePath });
+  console.log(
+    `[extract-orders] Fallback result: ${fullOrderContent.length} content blocks, ${pageTexts.length} pages`
+  );
+
+  return NextResponse.json({
+    extractedData,
+    storagePath,
+    _debug: {
+      totalPages: pageTexts.length,
+      totalBlocks: blocks.length,
+      totalChars: rawText.length,
+      itemsPerPage: pageTexts.map((p) => p.split("\n").filter((l) => l.trim()).length),
+      linesPerPage: pageTexts.map((p) => p.split("\n").filter((l) => l.trim()).length),
+      fallback: true,
+    },
+  });
 }
 
 // Store PDF in Supabase storage

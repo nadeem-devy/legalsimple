@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { DateDropdownPicker } from "@/components/ui/date-dropdown-picker";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -1047,41 +1048,12 @@ export function ModificationChatInterface({
       case "date":
         return (
           <div className="flex gap-3">
-            <Popover open={dateOpen} onOpenChange={setDateOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "flex-1 h-12 justify-start text-left font-normal rounded-xl border-slate-200",
-                    !dateValue && "text-slate-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-5 w-5 text-slate-400" />
-                  {dateValue
-                    ? format(dateValue, "MMMM d, yyyy")
-                    : "Select date..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateValue}
-                  onSelect={(date) => {
-                    setDateValue(date);
-                    setDateOpen(false);
-                  }}
-                  initialFocus
-                  captionLayout="dropdown"
-                  fromYear={1940}
-                  toYear={new Date().getFullYear()}
-                  defaultMonth={
-                    currentQuestion?.id === 'child_dob'
-                      ? new Date(new Date().getFullYear() - 5, 0)
-                      : undefined
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+            <DateDropdownPicker
+              value={dateValue}
+              onChange={setDateValue}
+              fromYear={1940}
+              toYear={new Date().getFullYear()}
+            />
             <Button
               onClick={handleSubmit}
               disabled={!dateValue}
@@ -1318,7 +1290,7 @@ export function ModificationChatInterface({
 
         {/* Completion State */}
         {chatState.isComplete && (
-          <div className="flex gap-3 justify-start">
+          <div data-testid="chat-complete" className="flex gap-3 justify-start">
             <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-md">
               <CheckCircle2 className="h-4 w-4 text-white" />
             </div>
@@ -1391,7 +1363,7 @@ export function ModificationChatInterface({
 
       {/* Input Area */}
       {!chatState.isStopped && !chatState.isComplete && currentQuestion && (
-        <div className="px-6 py-5 bg-slate-50 border-t border-slate-200 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+        <div data-testid="chat-input-area" className="px-6 py-5 bg-slate-50 border-t border-slate-200 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           {/* Undo button */}
           {stateHistory.length > 0 && (
             <div className="flex justify-start mb-3">

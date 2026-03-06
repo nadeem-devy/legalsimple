@@ -62,6 +62,19 @@ interface CaseWithIntake {
   intake_sessions: IntakeSession | IntakeSession[] | null;
 }
 
+// Helper to extract wantsInjunction from intake data
+function getWantsInjunction(intakeSessions: IntakeSession | IntakeSession[] | null): boolean {
+  if (!intakeSessions) return true; // Default to showing the button
+  const session = Array.isArray(intakeSessions)
+    ? intakeSessions.find((s) => s.completed && s.collected_data)
+    : intakeSessions;
+  if (!session?.collected_data) return true;
+  const data = session.collected_data as Record<string, unknown>;
+  // Check both field names: divorce uses wantsInjunction, paternity uses wantsPreliminaryInjunction
+  if (data.wantsInjunction === false || data.wantsPreliminaryInjunction === false) return false;
+  return true;
+}
+
 // Helper to check if intake is completed
 function hasCompletedIntake(intakeSessions: IntakeSession | IntakeSession[] | null): boolean {
   if (!intakeSessions) return false;
@@ -160,7 +173,7 @@ export default async function CourtFormsPage() {
                         <span className="text-slate-300">•</span>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          Created {format(new Date(caseItem.created_at), "MMM d, yyyy")}
+                          Created {format(new Date(caseItem.created_at), "MMM d, yyyy 'at' h:mm a")}
                         </div>
                       </div>
                     </div>
@@ -171,6 +184,7 @@ export default async function CourtFormsPage() {
                     caseName={caseItem.case_number || caseItem.id}
                     petitionerName={caseItem.plaintiff_name}
                     caseSubType={caseItem.sub_type}
+                    wantsInjunction={getWantsInjunction(caseItem.intake_sessions)}
                   />
                 </div>
               </CardContent>

@@ -242,7 +242,7 @@ export function SensitiveDataCoversheet({ data }: SensitiveDataCoversheetProps) 
           <TableRow
             label="Social Security Number"
             petValue={petitioner.ssn4 ? `XXX-XX-${petitioner.ssn4}` : ''}
-            resValue={respondent.ssn4 && respondent.ssn4 !== '0000' ? `XXX-XX-${respondent.ssn4}` : respondent.ssn4 === '0000' ? 'Unknown' : ''}
+            resValue={respondent.ssn4 && respondent.ssn4 !== '0000' && respondent.ssn4.toLowerCase() !== 'unknown' ? `XXX-XX-${respondent.ssn4}` : (respondent.ssn4 === '0000' || respondent.ssn4?.toLowerCase() === 'unknown') ? 'Unknown' : ''}
           />
 
           {/* Warning about mailing address */}

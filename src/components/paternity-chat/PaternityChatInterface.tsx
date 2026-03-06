@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { DateDropdownPicker } from "@/components/ui/date-dropdown-picker";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -563,20 +564,44 @@ export function PaternityChatInterface({
 
       case "address":
         return (
-          <div className="flex gap-3">
-            <AddressAutocomplete
-              value={currentInput}
-              onChange={setCurrentInput}
-              placeholder={currentQuestion.placeholder || "123 Main Street, Phoenix, AZ 85001"}
-              onKeyPress={handleKeyPress}
-            />
-            <Button
-              onClick={handleSubmit}
-              disabled={currentQuestion.required && !currentInput.trim()}
-              className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <AddressAutocomplete
+                  value={currentInput}
+                  onChange={setCurrentInput}
+                  placeholder={currentQuestion.placeholder || "123 Main Street, Phoenix, AZ 85001"}
+                  onKeyPress={handleKeyPress}
+                />
+                <button
+                  type="button"
+                  onClick={handleRefineText}
+                  disabled={isRefining || !currentInput.trim()}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border z-10",
+                    isRefining
+                      ? "opacity-60 cursor-not-allowed border-blue-200 bg-blue-50 text-blue-600"
+                      : !currentInput.trim()
+                        ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                        : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 active:scale-[0.97]"
+                  )}
+                >
+                  {isRefining ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <LogoIcon size="sm" className="h-3.5 w-3.5" />
+                  )}
+                  {isRefining ? "Refining..." : "AI Assist"}
+                </button>
+              </div>
+              <Button
+                onClick={handleSubmit}
+                disabled={currentQuestion.required && !currentInput.trim()}
+                className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         );
 
@@ -764,41 +789,12 @@ export function PaternityChatInterface({
       case "date":
         return (
           <div className="flex gap-3">
-            <Popover open={dateOpen} onOpenChange={setDateOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "flex-1 h-12 justify-start text-left font-normal rounded-xl border-slate-200",
-                    !dateValue && "text-slate-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-5 w-5 text-slate-400" />
-                  {dateValue ? format(dateValue, "MMMM d, yyyy") : "Select date..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateValue}
-                  onSelect={(date) => {
-                    setDateValue(date);
-                    setDateOpen(false);
-                  }}
-                  initialFocus
-                  captionLayout="dropdown"
-                  fromYear={1940}
-                  toYear={new Date().getFullYear()}
-                  defaultMonth={
-                    currentQuestion?.id === 'date_of_birth' || currentQuestion?.id === 'other_party_date_of_birth'
-                      ? new Date(1990, 0)
-                      : currentQuestion?.id === 'child_dob'
-                      ? new Date(new Date().getFullYear() - 5, 0)
-                      : undefined
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+            <DateDropdownPicker
+              value={dateValue}
+              onChange={setDateValue}
+              fromYear={1940}
+              toYear={new Date().getFullYear()}
+            />
             <Button
               onClick={handleSubmit}
               disabled={!dateValue}

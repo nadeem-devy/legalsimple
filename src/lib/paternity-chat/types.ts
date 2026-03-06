@@ -145,8 +145,11 @@ export interface PaternityChatData {
   otherPartyDateOfBirth: string;
   otherPartyAddressKnown: boolean;
   otherPartyMailingAddress: string;
+  otherPartySsn4Known: boolean;
   otherPartySsn4: string;
+  otherPartyPhoneKnown: boolean;
   otherPartyPhone: string;
+  otherPartyEmailKnown: boolean;
   otherPartyEmail: string;
 
   // === ARIZONA JURISDICTION ===
@@ -172,6 +175,7 @@ export interface PaternityChatData {
   existingOrderCourt?: string;
   existingOrderDate?: string;
   existingOrderNeedsModification?: boolean;
+  existingOrderModifyHow?: string;
 
   // === PAST CHILD SUPPORT ===
   owesPastChildSupport: boolean;
@@ -283,8 +287,11 @@ export const initialPaternityChatData: PaternityChatData = {
   otherPartyDateOfBirth: '',
   otherPartyAddressKnown: true,
   otherPartyMailingAddress: '',
+  otherPartySsn4Known: true,
   otherPartySsn4: '',
+  otherPartyPhoneKnown: true,
   otherPartyPhone: '',
+  otherPartyEmailKnown: true,
   otherPartyEmail: '',
 
   jurisdictionReasons: [],

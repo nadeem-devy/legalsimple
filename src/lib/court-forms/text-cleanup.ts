@@ -251,11 +251,31 @@ const ADDRESS_KEYS = new Set([
   'deploymentLocation',
 ]);
 
-// Keys that should NOT be cleaned (non-text, structured, or boolean)
+// Keys that should NOT be cleaned (non-text, structured, boolean, or enum/select values)
 const SKIP_KEYS = new Set([
-  'id', 'gender', 'spouseGender', 'ssn4', 'spouseSsn4', 'phone', 'spousePhone',
-  'email', 'spouseEmail', 'dateOfBirth', 'spouseDateOfBirth', 'dateOfMarriage',
-  'pregnancyDueDate', 'county',
+  // Identity fields
+  'id', 'gender', 'spouseGender', 'otherPartyGender', 'ssn4', 'spouseSsn4', 'otherPartySsn4',
+  'phone', 'spousePhone', 'otherPartyPhone',
+  'email', 'spouseEmail', 'otherPartyEmail',
+  'dateOfBirth', 'spouseDateOfBirth', 'otherPartyDateOfBirth',
+  'dateOfMarriage', 'pregnancyDueDate', 'county',
+  // Enum/select values — must not be capitalized or they break switch/comparison logic
+  'biologicalFather', 'legalDecisionMaking', 'finalSayParty',
+  'parentingTimeSchedule', 'exchangeMethod', 'phoneContactOption',
+  'extracurricularOption', 'extracurricularLimit',
+  'healthInsuranceProvider', 'drugConvictionParty',
+  'domesticViolenceCommittedBy', 'domesticViolenceOption',
+  'paternityReason', 'injunctionDocumentType',
+  'pastSupportOwedBy', 'pastSupportPeriod', 'voluntaryPaymentWho',
+  'childrenResideWith', 'vacationPriorityYears', 'restrictedTravelParty',
+  // Divorce enum fields
+  'divorceReason', 'maintenanceEntitlement', 'propertyDivisionMethod',
+  'debtDivisionMethod', 'petitionerBiologicalRole',
+  // Modification enum fields
+  'role', 'modificationsSelected',
+  'ldm_modificationType', 'ldm_courtName', 'ldm_pageNumber', 'ldm_paragraphNumber', 'ldm_orderDate',
+  'pt_newSchedule', 'pt_courtName', 'pt_pageNumber', 'pt_paragraphNumber', 'pt_orderDate',
+  'cs_courtName', 'cs_pageNumber', 'cs_paragraphNumber', 'cs_orderDate',
 ]);
 
 /**

@@ -283,6 +283,58 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
   },
 
   // =====================
+  // MISSING SECTION WARNINGS (shown when uploaded orders lack a section)
+  // =====================
+  {
+    id: 'ldm_missing_warning',
+    type: 'select',
+    question: '⚠️ The court orders you uploaded do not appear to contain any information pertaining to Legal Decision Making. Do you have other orders that directly address this issue?\n\nYou can still proceed and enter the information manually, or you can upload additional orders now.',
+    options: [
+      { value: 'continue_manually', label: 'Continue manually' },
+      { value: 'upload_additional', label: 'Upload additional orders' },
+    ],
+    nextQuestionMap: {
+      continue_manually: 'ldm_intro',
+      upload_additional: 'upload_additional_orders',
+    },
+  },
+  {
+    id: 'pt_missing_warning',
+    type: 'select',
+    question: '⚠️ The court orders you uploaded do not appear to contain any information pertaining to Parenting Time. Do you have other orders that directly address this issue?\n\nYou can still proceed and enter the information manually, or you can upload additional orders now.',
+    options: [
+      { value: 'continue_manually', label: 'Continue manually' },
+      { value: 'upload_additional', label: 'Upload additional orders' },
+    ],
+    nextQuestionMap: {
+      continue_manually: 'pt_intro',
+      upload_additional: 'upload_additional_orders',
+    },
+  },
+  {
+    id: 'cs_missing_warning',
+    type: 'select',
+    question: '⚠️ The court orders you uploaded do not appear to contain any information pertaining to Child Support. Do you have other orders that directly address this issue?\n\nYou can still proceed and enter the information manually, or you can upload additional orders now.',
+    options: [
+      { value: 'continue_manually', label: 'Continue manually' },
+      { value: 'upload_additional', label: 'Upload additional orders' },
+    ],
+    nextQuestionMap: {
+      continue_manually: 'cs_intro',
+      upload_additional: 'upload_additional_orders',
+    },
+  },
+  {
+    id: 'upload_additional_orders',
+    type: 'file_upload',
+    question: 'Upload your additional court orders.',
+    description: 'Upload orders that contain the information for the section you want to modify.\n\nAccepted formats: PDF',
+    required: false,
+    // Engine resolves __resume_after_upload__ to the appropriate issue intro
+    nextQuestionId: '__resume_after_upload__',
+  },
+
+  // =====================
   // LEGAL DECISION MAKING BLOCK
   // =====================
   {
@@ -342,10 +394,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'ldm_why_change',
     type: 'textarea',
     question:
-      'Please describe why you believe this Legal Decision Making Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
-    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Legal Decision Making. Please be specific — for example, what has changed in the living situation, parental behavior, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
-      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
+      'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting a different arrangement is not sufficient. Be specific about what has changed.',
     required: true,
     nextQuestionId: 'ldm_modification_type',
   },
@@ -432,10 +484,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_why_change',
     type: 'textarea',
     question:
-      'Please describe why you believe this Parenting Time Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
-    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Parenting Time. Please be specific — for example, what has changed in the schedules, living situations, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
-      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
+      'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting more time is not sufficient. Be specific about what has changed.',
     required: true,
     nextQuestionId: 'pt_new_schedule',
   },
@@ -496,8 +548,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       yes: 'pt_supervised_reason',
-      // Engine intercepts __next_issue__ sentinel
-      no: '__next_issue__',
+      no: 'pt_modify_holidays',
     },
   },
   {
@@ -506,6 +557,45 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     question:
       'Please explain why you believe supervised parenting time is in the best interests of the minor children. Please use our AI assist feature to refine your answer for the Petition.',
     placeholder: 'Describe why supervision is needed...',
+    required: true,
+    nextQuestionId: 'pt_modify_holidays',
+  },
+  {
+    id: 'pt_modify_holidays',
+    type: 'yesno',
+    question: 'Do you also want to modify the holiday parenting time schedule?',
+    tooltip: 'This includes holidays such as Thanksgiving, Christmas, Easter, Fourth of July, and other special occasions.',
+    required: true,
+    nextQuestionMap: {
+      yes: 'pt_holiday_changes',
+      no: 'pt_modify_breaks',
+    },
+  },
+  {
+    id: 'pt_holiday_changes',
+    type: 'textarea',
+    question: 'Please describe the changes you are requesting to the holiday parenting time schedule.\n\nPlease write your answer in third person. You can use the AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the holiday schedule changes you are requesting...',
+    required: true,
+    nextQuestionId: 'pt_modify_breaks',
+  },
+  {
+    id: 'pt_modify_breaks',
+    type: 'yesno',
+    question: 'Do you also want to modify the school break parenting time schedule?',
+    tooltip: 'This includes spring break, fall break, winter break, and summer break.',
+    required: true,
+    nextQuestionMap: {
+      yes: 'pt_break_changes',
+      // Engine intercepts __next_issue__ sentinel
+      no: '__next_issue__',
+    },
+  },
+  {
+    id: 'pt_break_changes',
+    type: 'textarea',
+    question: 'Please describe the changes you are requesting to the school break parenting time schedule.\n\nPlease write your answer in third person. You can use the AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the school break schedule changes you are requesting...',
     required: true,
     // Engine intercepts this sentinel to route to next selected issue or complete
     nextQuestionId: '__next_issue__',
@@ -570,10 +660,10 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'cs_why_change',
     type: 'textarea',
     question:
-      'Please describe why you believe this Child Support Order should be modified. Please use our AI assist feature to refine your answer for the Petition.',
-    placeholder: 'Describe the specific reasons why you believe this order should be modified...',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Child Support. Please be specific — for example, what has changed in income, employment, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
-      'The petition will automatically state that a substantial and continuing change in circumstance has occurred. Here, describe the specific reasons for the modification.',
+      'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting a different amount is not sufficient. Be specific about what has changed.',
     required: true,
     // Engine intercepts this sentinel to route to next selected issue or complete
     nextQuestionId: '__next_issue__',
