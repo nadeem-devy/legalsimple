@@ -37,6 +37,7 @@ import {
   X,
   FileUp,
   Eye,
+  RotateCcw,
 } from "lucide-react";
 import { LogoIcon } from "@/components/ui/logo";
 import { AddressAutocomplete } from "@/components/ui/AddressAutocomplete";
@@ -1246,10 +1247,28 @@ export function ModificationChatInterface({
               {answeredQuestions} questions answered
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="text-2xl font-bold text-amber-600">
               {progressPercent}%
             </span>
+            {answeredQuestions > 0 && (
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to start over? All your answers will be cleared.")) {
+                    localStorage.removeItem(storageKey);
+                    localStorage.removeItem(historyKey);
+                    const fresh = startChat();
+                    setChatState(fresh);
+                    setStateHistory([]);
+                    setExtractedData(null);
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-red-200 transition-colors"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Start Over
+              </button>
+            )}
           </div>
         </div>
         <Progress value={progressPercent} className="h-2" />
