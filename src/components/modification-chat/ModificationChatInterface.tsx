@@ -178,6 +178,7 @@ export function ModificationChatInterface({
   const [isRefining, setIsRefining] = useState(false);
   const [savedCaseId, setSavedCaseId] = useState<string | null>(null);
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadProgress, setUploadProgress] = useState<'reading' | 'analyzing' | 'extracting'>('reading');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedOrderData | null>(null);
   const [uploadedOrderPath, setUploadedOrderPath] = useState<string | null>(null);
@@ -436,8 +437,13 @@ export function ModificationChatInterface({
     }
 
     setUploadState('uploading');
+    setUploadProgress('reading');
     setUploadError(null);
     setExtractedData(null);
+
+    // Simulate progress stages while the API processes
+    const progressTimer1 = setTimeout(() => setUploadProgress('analyzing'), 2000);
+    const progressTimer2 = setTimeout(() => setUploadProgress('extracting'), 8000);
 
     try {
       const formData = new FormData();
@@ -486,6 +492,9 @@ export function ModificationChatInterface({
           ? error.message
           : 'Failed to analyze document. You can skip and enter information manually.'
       );
+    } finally {
+      clearTimeout(progressTimer1);
+      clearTimeout(progressTimer2);
     }
   }, []);
 
@@ -708,13 +717,67 @@ export function ModificationChatInterface({
             )}
 
             {uploadState === 'uploading' && (
-              <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-8 text-center">
-                <Loader2 className="h-10 w-10 text-amber-600 mx-auto mb-3 animate-spin" />
-                <p className="text-sm font-medium text-amber-800">
-                  Analyzing your court orders...
-                </p>
-                <p className="text-xs text-amber-600 mt-1">
-                  This may take a few moments
+              <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <Loader2 className="h-6 w-6 text-amber-600 animate-spin flex-shrink-0" />
+                  <p className="text-sm font-medium text-amber-800">
+                    Processing your court orders...
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0",
+                      uploadProgress === 'reading' ? "bg-amber-500" : "bg-green-500"
+                    )}>
+                      {uploadProgress === 'reading' ? (
+                        <Loader2 className="h-3 w-3 text-white animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3 w-3 text-white" />
+                      )}
+                    </div>
+                    <span className={cn("text-sm", uploadProgress === 'reading' ? "text-amber-800 font-medium" : "text-green-700")}>
+                      Reading PDF document
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0",
+                      uploadProgress === 'analyzing' ? "bg-amber-500" :
+                      uploadProgress === 'extracting' ? "bg-green-500" : "bg-slate-200"
+                    )}>
+                      {uploadProgress === 'analyzing' ? (
+                        <Loader2 className="h-3 w-3 text-white animate-spin" />
+                      ) : uploadProgress === 'extracting' ? (
+                        <CheckCircle2 className="h-3 w-3 text-white" />
+                      ) : (
+                        <span className="h-2 w-2 bg-slate-400 rounded-full" />
+                      )}
+                    </div>
+                    <span className={cn("text-sm",
+                      uploadProgress === 'analyzing' ? "text-amber-800 font-medium" :
+                      uploadProgress === 'extracting' ? "text-green-700" : "text-slate-400"
+                    )}>
+                      Analyzing document structure
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0",
+                      uploadProgress === 'extracting' ? "bg-amber-500" : "bg-slate-200"
+                    )}>
+                      {uploadProgress === 'extracting' ? (
+                        <Loader2 className="h-3 w-3 text-white animate-spin" />
+                      ) : (
+                        <span className="h-2 w-2 bg-slate-400 rounded-full" />
+                      )}
+                    </div>
+                    <span className={cn("text-sm",
+                      uploadProgress === 'extracting' ? "text-amber-800 font-medium" : "text-slate-400"
+                    )}>
+                      Extracting case details &amp; sections
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-500 mt-4 text-center">
+                  This usually takes 15-30 seconds
                 </p>
               </div>
             )}
@@ -817,15 +880,18 @@ export function ModificationChatInterface({
 
             {uploadState === 'error' && (
               <div className="space-y-4">
-                <div className="border-2 border-red-200 bg-red-50 rounded-xl p-5">
+                <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-5">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <Info className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-red-800">
-                        Could not extract information
+                      <p className="text-sm font-medium text-amber-800">
+                        We had trouble reading this document
                       </p>
-                      <p className="text-xs text-red-600 mt-1">
+                      <p className="text-xs text-amber-600 mt-2">
                         {uploadError}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        This can happen with scanned documents or certain PDF formats. You can try again or enter your information manually — it only takes a few minutes.
                       </p>
                     </div>
                   </div>
@@ -840,12 +906,14 @@ export function ModificationChatInterface({
                     }}
                     className="h-11"
                   >
+                    <Upload className="h-4 w-4 mr-2" />
                     Try again
                   </Button>
                   <Button
                     onClick={handleUploadSkip}
                     className="h-11 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
                   >
+                    <FileEdit className="h-4 w-4 mr-2" />
                     Enter manually
                   </Button>
                 </div>
