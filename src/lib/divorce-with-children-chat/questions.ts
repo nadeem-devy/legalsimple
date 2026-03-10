@@ -592,13 +592,23 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
   // =====================
   {
     id: 'drug_conviction_check',
-    type: 'yesno',
+    type: 'select',
     question: 'Has either party been convicted for a drug offense or driving under the influence of drugs or alcohol in the last 12 months?',
+    options: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no', label: 'No' },
+      {
+        value: 'unaware',
+        label: 'I have not, but I am unaware if my significant other has',
+        description: 'You have not been convicted, but you do not know whether your spouse has.',
+      },
+    ],
     tooltip: 'Arizona law requires disclosure of recent drug or DUI convictions as they may affect custody and parenting time decisions.',
     required: true,
     nextQuestionMap: {
       'yes': 'drug_conviction_who',
       'no': 'child_support_check',
+      'unaware': 'child_support_check',
     },
   },
   {
@@ -626,7 +636,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'voluntary_support_check',
-      'no': 'legal_decision_making',
+      'no': 'health_insurance_provider',
     },
   },
   {
@@ -677,7 +687,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'past_support_period',
-      'no': 'legal_decision_making',
+      'no': 'health_insurance_provider',
     },
   },
   {
@@ -698,6 +708,23 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
       },
     ],
     tooltip: 'Arizona allows past child support to be ordered for up to 3 years before the petition was filed.',
+    required: true,
+    nextQuestionId: 'health_insurance_provider',
+  },
+
+  // =====================
+  // HEALTH INSURANCE (Q28b)
+  // =====================
+  {
+    id: 'health_insurance_provider',
+    type: 'select',
+    question: 'Who will be providing medical/health insurance for the minor child/children?',
+    options: [
+      { value: 'petitioner', label: 'I (Petitioner) will provide health insurance' },
+      { value: 'respondent', label: 'My spouse (Respondent) will provide health insurance' },
+      { value: 'both', label: 'Both parties shall provide medical insurance for the minor child/children' },
+    ],
+    tooltip: 'Arizona courts require that health insurance be maintained for the children. The cost of insurance is factored into child support calculations.',
     required: true,
     nextQuestionId: 'legal_decision_making',
   },
@@ -791,12 +818,22 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     tooltip: 'The 3-2-2-3, 5-2-2-5, and alternating weeks schedules all result in equal parenting time (50/50).',
     required: true,
     nextQuestionMap: {
-      'custom': 'supervised_check',
+      'custom': 'custom_schedule_details',
       '3-2-2-3': 'holiday_intro',
       '5-2-2-5': 'holiday_intro',
       'alternating_weeks': 'holiday_intro',
       'no_parenting_time': 'holiday_intro',
     },
+  },
+  {
+    id: 'custom_schedule_details',
+    type: 'textarea',
+    question: 'Please describe your desired parenting time schedule in detail.',
+    description: 'Include which days/times each parent will have the children, exchange times, and any other specifics. Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'e.g., Father shall have the children every other weekend from Friday at 6:00 PM to Sunday at 6:00 PM, and every Wednesday from 3:00 PM to 7:00 PM...',
+    tooltip: 'Be as specific as possible. This will be included in your court filing exactly as written.',
+    required: true,
+    nextQuestionId: 'supervised_check',
   },
   {
     id: 'supervised_check',
@@ -1079,8 +1116,18 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'normal_hours': 'vacation_time_check',
-      'custom': 'vacation_time_check',
+      'custom': 'phone_contact_custom_details',
     },
+  },
+  {
+    id: 'phone_contact_custom_details',
+    type: 'textarea',
+    question: 'Please describe your desired telephone/video contact schedule.',
+    description: 'Specify times, frequency, and any other details for phone/video contact. Please use our AI assist feature to refine your answer for the Petition.',
+    placeholder: 'e.g., Each parent may have a 15-minute phone or video call with the children each evening between 7:00 PM and 8:00 PM during the other parent\'s parenting time...',
+    tooltip: 'This will be included in your court filing as written.',
+    required: true,
+    nextQuestionId: 'vacation_time_check',
   },
 
   // =====================
@@ -1192,6 +1239,11 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     question: 'How would you like to handle extracurricular activities for the children?',
     options: [
       {
+        value: 'none',
+        label: 'No extracurricular activities',
+        description: 'I do not wish to include extracurricular activities at this time.',
+      },
+      {
         value: 'both_agree_split',
         label: 'Both parents must agree, costs split evenly',
         description: 'Both parents must agree on all extracurricular activities and cost is evenly split.',
@@ -1215,6 +1267,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     tooltip: 'Extracurricular activities include sports, music lessons, clubs, and other organized activities.',
     required: true,
     nextQuestionMap: {
+      'none': 'right_of_first_refusal',
       'each_selects_limit_split': 'extracurricular_limit',
       'other': 'extracurricular_other_details',
       'both_agree_split': 'right_of_first_refusal',

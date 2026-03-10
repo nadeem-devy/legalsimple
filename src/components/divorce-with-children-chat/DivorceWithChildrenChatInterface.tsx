@@ -860,6 +860,10 @@ export function DivorceWithChildrenChatInterface({
                 {isRefining ? "Refining..." : "AI Assist"}
               </button>
             </div>
+            <p className="text-xs text-blue-600 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Type your answer, then tap <span className="font-semibold">AI Assist</span> to refine it for your court filing.
+            </p>
             <Button
               onClick={handleSubmit}
               disabled={currentQuestion.required && !currentInput.trim()}
@@ -1023,51 +1027,59 @@ export function DivorceWithChildrenChatInterface({
       default: {
         const isNameField = ["full_name", "spouse_full_name", "maiden_name_input", "child_full_name"].includes(currentQuestion.id);
         return (
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Input
-                ref={inputRef as React.RefObject<HTMLInputElement>}
-                type="text"
-                value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={currentQuestion.placeholder || "Type your answer..."}
-                spellCheck={true}
-                className={cn(
-                  "h-12 text-base border-slate-200 focus:border-blue-500 focus:ring-blue-500 rounded-xl w-full",
-                  !isNameField && "pr-[90px]"
-                )}
-              />
-              {!isNameField && (
-                <button
-                  type="button"
-                  onClick={handleRefineText}
-                  disabled={isRefining || !currentInput.trim()}
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  type="text"
+                  value={currentInput}
+                  onChange={(e) => setCurrentInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={currentQuestion.placeholder || "Type your answer..."}
+                  spellCheck={true}
                   className={cn(
-                    "absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border",
-                    isRefining
-                      ? "opacity-60 cursor-not-allowed border-blue-200 bg-blue-50 text-blue-600"
-                      : !currentInput.trim()
-                        ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                        : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 active:scale-[0.97]"
+                    "h-12 text-base border-slate-200 focus:border-blue-500 focus:ring-blue-500 rounded-xl w-full",
+                    !isNameField && "pr-[90px]"
                   )}
-                >
-                  {isRefining ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <LogoIcon size="sm" className="h-3.5 w-3.5" />
-                  )}
-                  {isRefining ? "Refining..." : "AI Assist"}
-                </button>
-              )}
+                />
+                {!isNameField && (
+                  <button
+                    type="button"
+                    onClick={handleRefineText}
+                    disabled={isRefining || !currentInput.trim()}
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border",
+                      isRefining
+                        ? "opacity-60 cursor-not-allowed border-blue-200 bg-blue-50 text-blue-600"
+                        : !currentInput.trim()
+                          ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                          : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 active:scale-[0.97]"
+                    )}
+                  >
+                    {isRefining ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <LogoIcon size="sm" className="h-3.5 w-3.5" />
+                    )}
+                    {isRefining ? "Refining..." : "AI Assist"}
+                  </button>
+                )}
+              </div>
+              <Button
+                onClick={handleSubmit}
+                disabled={currentQuestion.required && !currentInput.trim()}
+                className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
             </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={currentQuestion.required && !currentInput.trim()}
-              className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
+            {!isNameField && (
+              <p className="text-xs text-blue-600 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Use <span className="font-semibold">AI Assist</span> to refine your answer for your court filing.
+              </p>
+            )}
           </div>
         );
       }

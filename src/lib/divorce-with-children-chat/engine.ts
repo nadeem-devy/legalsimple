@@ -476,7 +476,8 @@ function updateDataFromAnswer(
 
     // Drug/DUI Conviction
     case 'drug_conviction_check':
-      data.hasDrugConviction = answer.toLowerCase() === 'yes';
+      data.hasDrugConviction = answer === 'yes';
+      data.drugConvictionUnaware = answer === 'unaware';
       break;
     case 'drug_conviction_who':
       data.drugConvictionParty = answer as 'me' | 'spouse';
@@ -485,6 +486,9 @@ function updateDataFromAnswer(
     // Child Support
     case 'child_support_check':
       data.seekingChildSupport = answer.toLowerCase() === 'yes';
+      break;
+    case 'health_insurance_provider':
+      data.healthInsuranceProvider = answer as 'petitioner' | 'respondent' | 'both';
       break;
     case 'voluntary_support_check':
       data.hasVoluntaryChildSupport = answer.toLowerCase() === 'yes';
@@ -516,6 +520,9 @@ function updateDataFromAnswer(
     // Parenting Time
     case 'parenting_time_schedule':
       data.parentingTimeSchedule = answer as '3-2-2-3' | '5-2-2-5' | 'custom';
+      break;
+    case 'custom_schedule_details':
+      data.customScheduleDetails = answer;
       break;
     case 'supervised_check':
       data.isParentingTimeSupervised = answer === 'supervised';
@@ -611,6 +618,9 @@ function updateDataFromAnswer(
     // Phone Contact
     case 'phone_contact':
       data.phoneContactOption = answer as 'normal_hours' | 'custom';
+      break;
+    case 'phone_contact_custom_details':
+      data.phoneContactCustomSchedule = answer;
       break;
     // Vacation
     case 'vacation_time_check':

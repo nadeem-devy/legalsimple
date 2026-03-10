@@ -212,10 +212,12 @@ export interface DivorceWithChildrenChatData {
 
   // Drug/DUI Conviction
   hasDrugConviction: boolean;
+  drugConvictionUnaware?: boolean;
   drugConvictionParty?: 'me' | 'spouse';
 
   // Child Support
   seekingChildSupport: boolean;
+  healthInsuranceProvider?: 'petitioner' | 'respondent' | 'both';
   hasVoluntaryChildSupport?: boolean;
   voluntaryPaymentWho?: 'petitioner' | 'respondent';
   voluntaryPaymentAmount?: string;
@@ -260,7 +262,7 @@ export interface DivorceWithChildrenChatData {
   itineraryNoticeDays?: string;
 
   // Extracurricular Activities
-  extracurricularOption: 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
+  extracurricularOption: 'none' | 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
   extracurricularLimit?: string;
   extracurricularOtherDetails?: string;
 

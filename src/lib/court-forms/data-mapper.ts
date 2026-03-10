@@ -83,6 +83,7 @@ export interface NormalizedPDFData {
     domesticViolenceOption?: string;
     domesticViolenceExplanation?: string;
     hasDrugConviction: boolean;
+    drugConvictionUnaware?: boolean;
     drugConvictionParty?: string;
   };
 
@@ -95,6 +96,7 @@ export interface NormalizedPDFData {
     voluntaryPaymentAmount?: string;
     voluntaryPaymentStartDate?: string;
     pastSupportPeriod?: string;
+    healthInsuranceProvider?: 'petitioner' | 'respondent' | 'both';
   };
 
   // Custody (legal decision making)
@@ -485,6 +487,7 @@ function mapDivorceWithChildrenData(data: DivorceWithChildrenChatData): Normaliz
       domesticViolenceOption: data.domesticViolenceOption,
       domesticViolenceExplanation: data.domesticViolenceExplanation,
       hasDrugConviction: data.hasDrugConviction || false,
+      drugConvictionUnaware: data.drugConvictionUnaware || false,
       drugConvictionParty: data.drugConvictionParty,
     },
 
@@ -493,6 +496,7 @@ function mapDivorceWithChildrenData(data: DivorceWithChildrenChatData): Normaliz
       hasVoluntaryPayments: data.hasVoluntaryChildSupport,
       voluntaryPaymentsDetails: data.voluntaryChildSupportDetails,
       pastSupportPeriod: data.pastSupportPeriod,
+      healthInsuranceProvider: data.healthInsuranceProvider,
     },
 
     custody: {
@@ -649,6 +653,7 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
       domesticViolenceOption: data.domesticViolenceOption,
       domesticViolenceExplanation: data.domesticViolenceExplanation,
       hasDrugConviction: data.hasDrugConviction || false,
+      drugConvictionUnaware: false,
       drugConvictionParty: data.drugConvictionParty,
     },
 
@@ -660,6 +665,7 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
       voluntaryPaymentAmount: data.voluntaryPaymentAmount,
       voluntaryPaymentStartDate: data.voluntaryPaymentStartDate,
       pastSupportPeriod: data.pastSupportPeriod,
+      healthInsuranceProvider: data.healthInsuranceProvider,
     },
 
     custody: {

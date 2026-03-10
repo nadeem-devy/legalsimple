@@ -955,6 +955,8 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
               <Text style={styles.bold}>Drug/Alcohol Conviction:</Text>{' '}
               {safetyIssues?.hasDrugConviction
                 ? `${safetyIssues.drugConvictionParty === 'me' ? 'Petitioner' : safetyIssues.drugConvictionParty === 'spouse' ? 'Respondent' : safetyIssues.drugConvictionParty || 'A party'} has a conviction related to drug or alcohol abuse.`
+                : safetyIssues?.drugConvictionUnaware
+                ? `Petitioner alleges that ${data.petitioner.gender === 'female' ? 'she' : 'he'} does not have sufficient information to either affirm or deny whether Respondent has been convicted of a drug offense or driving under the influence of drugs or alcohol in the last 12 months, and affirmatively avers that ${data.petitioner.gender === 'female' ? 'she' : 'he'} has not.`
                 : 'Neither party has a drug or alcohol-related conviction.'
               }
             </Text>
@@ -991,8 +993,22 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
             </View>
           )}
 
+          {/* Health Insurance */}
+          {childSupport?.healthInsuranceProvider && (
+            <View style={styles.bodyText}>
+              <Text>
+                <Text style={styles.bold}>Health Insurance:</Text>{' '}
+                {childSupport.healthInsuranceProvider === 'petitioner'
+                  ? 'Petitioner shall provide medical/health insurance for the minor child/children.'
+                  : childSupport.healthInsuranceProvider === 'respondent'
+                  ? 'Respondent shall provide medical/health insurance for the minor child/children.'
+                  : 'Both parties shall provide medical insurance for the minor child/children.'}
+              </Text>
+            </View>
+          )}
+
           {/* Extracurricular Activities */}
-          {data.extracurricular && (
+          {data.extracurricular && data.extracurricular.option !== 'none' && (
             <View style={styles.bodyText}>
               <Text style={styles.bold}>Extracurricular Activities:</Text>
               <Text>
@@ -1003,8 +1019,16 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
                   : data.extracurricular.option === 'each_selects_limit_split'
                   ? `Each parent may select and enroll the children in extracurricular activities, up to ${data.extracurricular.limit || 'a reasonable number'} activities per year. Costs shall be split equally between the parties.`
                   : data.extracurricular.option === 'other' && data.extracurricular.otherDetails
-                  ? `The parties agree to the following arrangement for extracurricular activities: ${data.extracurricular.otherDetails}`
+                  ? data.extracurricular.otherDetails
                   : 'Extracurricular activities shall be determined in the best interests of the children.'}
+              </Text>
+            </View>
+          )}
+          {data.extracurricular && data.extracurricular.option === 'none' && (
+            <View style={styles.bodyText}>
+              <Text style={styles.bold}>Extracurricular Activities:</Text>
+              <Text>
+                The Petitioner does not wish to include the involvement of the children in any extracurricular activities at this time.
               </Text>
             </View>
           )}
@@ -1136,7 +1160,13 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
                   <View style={styles.requestRow}>
                     <Text style={styles.requestNumber}>{reqNum++}.</Text>
                     <Text style={styles.requestContent}>
-                      Order that medical, dental, and vision insurance be maintained for the minor child(ren) and that unreimbursed expenses be divided between the parties.
+                      {childSupport?.healthInsuranceProvider === 'petitioner'
+                        ? 'Order that Petitioner shall maintain medical, dental, and vision insurance for the minor child(ren) and that unreimbursed expenses be divided between the parties.'
+                        : childSupport?.healthInsuranceProvider === 'respondent'
+                        ? 'Order that Respondent shall maintain medical, dental, and vision insurance for the minor child(ren) and that unreimbursed expenses be divided between the parties.'
+                        : childSupport?.healthInsuranceProvider === 'both'
+                        ? 'Order that both parties shall maintain medical, dental, and vision insurance for the minor child(ren) and that unreimbursed expenses be divided between the parties.'
+                        : 'Order that medical, dental, and vision insurance be maintained for the minor child(ren) and that unreimbursed expenses be divided between the parties.'}
                     </Text>
                   </View>
                 </>
