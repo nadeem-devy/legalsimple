@@ -230,7 +230,7 @@ export interface NormalizedPDFData {
     wantsPreliminaryInjunction: boolean;
     injunctionDocumentType?: string;
     hasAttendedParentInfoProgram: boolean;
-    healthInsuranceProvider?: 'petitioner' | 'respondent';
+    healthInsuranceProvider?: 'petitioner' | 'respondent' | 'both';
     hasExistingChildSupportOrder: boolean;
     existingOrderCourt?: string;
     existingOrderDate?: string;
@@ -275,12 +275,17 @@ export interface NormalizedPDFData {
       paragraphNumber: string;
       whyChange: string;
       newSchedule: string;
+      customScheduleDetails: string;
       supervised: boolean;
       supervisedReason: string;
       currentOrderText: string;
       modifyHolidays: boolean;
+      holidayPageNumber: string;
+      holidayParagraphNumber: string;
       holidayChanges: string;
       modifyBreaks: boolean;
+      breakPageNumber: string;
+      breakParagraphNumber: string;
       breakChanges: string;
     };
     // Child Support
@@ -653,7 +658,7 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
       domesticViolenceOption: data.domesticViolenceOption,
       domesticViolenceExplanation: data.domesticViolenceExplanation,
       hasDrugConviction: data.hasDrugConviction || false,
-      drugConvictionUnaware: false,
+      drugConvictionUnaware: data.drugConvictionUnaware || false,
       drugConvictionParty: data.drugConvictionParty,
     },
 
@@ -862,12 +867,17 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         paragraphNumber: data.pt_paragraphNumber || '',
         whyChange: data.pt_whyChange || '',
         newSchedule: data.pt_newSchedule || '',
+        customScheduleDetails: data.pt_customScheduleDetails || '',
         supervised: data.pt_supervised || false,
         supervisedReason: data.pt_supervisedReason || '',
         currentOrderText: data.pt_currentOrderText || '',
         modifyHolidays: data.pt_modifyHolidays || false,
+        holidayPageNumber: data.pt_holidayPageNumber || '',
+        holidayParagraphNumber: data.pt_holidayParagraphNumber || '',
         holidayChanges: data.pt_holidayChanges || '',
         modifyBreaks: data.pt_modifyBreaks || false,
+        breakPageNumber: data.pt_breakPageNumber || '',
+        breakParagraphNumber: data.pt_breakParagraphNumber || '',
         breakChanges: data.pt_breakChanges || '',
       } : undefined,
 

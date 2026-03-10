@@ -394,7 +394,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'ldm_why_change',
     type: 'textarea',
     question:
-      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Legal Decision Making. Please be specific — for example, what has changed in the living situation, parental behavior, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Legal Decision Making. Please be specific — for example, what has changed in the living situation, parental behavior, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The {roleLabel} has experienced..." rather than "I have experienced..."). You can use the AI Assist feature to refine your answer for the Petition.',
     placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
       'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting a different arrangement is not sufficient. Be specific about what has changed.',
@@ -466,7 +466,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_page_number',
     type: 'select',
     question:
-      'What page number is the Parenting Time Order you wish to change?',
+      'What page number refers to the regular parenting time schedule in the existing orders?',
     options: PAGE_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'pt_paragraph_number',
@@ -475,7 +475,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_paragraph_number',
     type: 'select',
     question:
-      'What paragraph or section is the Parenting Time Order you wish to change?',
+      'What paragraph or section refers to the regular parenting time schedule in the existing orders?',
     options: PARAGRAPH_NUMBER_OPTIONS,
     required: true,
     nextQuestionId: 'pt_why_change',
@@ -484,7 +484,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_why_change',
     type: 'textarea',
     question:
-      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Parenting Time. Please be specific — for example, what has changed in the schedules, living situations, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Parenting Time. Please be specific — for example, what has changed in the schedules, living situations, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The {roleLabel} has experienced..." rather than "I have experienced..."). You can use the AI Assist feature to refine your answer for the Petition.',
     placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
       'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting more time is not sufficient. Be specific about what has changed.',
@@ -532,12 +532,21 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
       'The 3-2-2-3, 5-2-2-5, and alternating weeks schedules all result in equal parenting time (50/50).',
     required: true,
     nextQuestionMap: {
-      custom: 'pt_supervised',
+      custom: 'pt_custom_schedule_details',
       '3-2-2-3': 'pt_supervised',
       '5-2-2-5': 'pt_supervised',
       alternating_weeks: 'pt_supervised',
       no_parenting_time: 'pt_supervised',
     },
+  },
+  {
+    id: 'pt_custom_schedule_details',
+    type: 'textarea',
+    question: 'Please describe your desired parenting time schedule in detail.\n\nInclude which days/times each parent will have the children, weekend arrangements, and any other specifics about how parenting time should be divided. You can use the AI Assist feature to refine your answer for the Petition.',
+    placeholder: 'Describe your preferred parenting time schedule...',
+    tooltip: 'Be as specific as possible. The court will use this to establish the parenting time order.',
+    required: true,
+    nextQuestionId: 'pt_supervised',
   },
   {
     id: 'pt_supervised',
@@ -567,14 +576,30 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     tooltip: 'This includes holidays such as Thanksgiving, Christmas, Easter, Fourth of July, and other special occasions.',
     required: true,
     nextQuestionMap: {
-      yes: 'pt_holiday_changes',
+      yes: 'pt_holiday_page_number',
       no: 'pt_modify_breaks',
     },
   },
   {
+    id: 'pt_holiday_page_number',
+    type: 'select',
+    question: 'What page number refers to the holiday parenting time schedule in the existing orders?',
+    options: PAGE_NUMBER_OPTIONS,
+    required: true,
+    nextQuestionId: 'pt_holiday_paragraph_number',
+  },
+  {
+    id: 'pt_holiday_paragraph_number',
+    type: 'select',
+    question: 'What paragraph or section refers to the holiday parenting time schedule in the existing orders?',
+    options: PARAGRAPH_NUMBER_OPTIONS,
+    required: true,
+    nextQuestionId: 'pt_holiday_changes',
+  },
+  {
     id: 'pt_holiday_changes',
     type: 'textarea',
-    question: 'Please describe the changes you are requesting to the holiday parenting time schedule.\n\nPlease write your answer in third person. You can use the AI assist feature to refine your answer for the Petition.',
+    question: 'Please describe the changes you are requesting to the holiday parenting time schedule.\n\nPlease write your answer in third person. You can use the AI Assist feature to refine your answer for the Petition.',
     placeholder: 'Describe the holiday schedule changes you are requesting...',
     required: true,
     nextQuestionId: 'pt_modify_breaks',
@@ -586,15 +611,31 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     tooltip: 'This includes spring break, fall break, winter break, and summer break.',
     required: true,
     nextQuestionMap: {
-      yes: 'pt_break_changes',
+      yes: 'pt_break_page_number',
       // Engine intercepts __next_issue__ sentinel
       no: '__next_issue__',
     },
   },
   {
+    id: 'pt_break_page_number',
+    type: 'select',
+    question: 'What page number refers to the school break parenting time schedule in the existing orders?',
+    options: PAGE_NUMBER_OPTIONS,
+    required: true,
+    nextQuestionId: 'pt_break_paragraph_number',
+  },
+  {
+    id: 'pt_break_paragraph_number',
+    type: 'select',
+    question: 'What paragraph or section refers to the school break parenting time schedule in the existing orders?',
+    options: PARAGRAPH_NUMBER_OPTIONS,
+    required: true,
+    nextQuestionId: 'pt_break_changes',
+  },
+  {
     id: 'pt_break_changes',
     type: 'textarea',
-    question: 'Please describe the changes you are requesting to the school break parenting time schedule.\n\nPlease write your answer in third person. You can use the AI assist feature to refine your answer for the Petition.',
+    question: 'Please describe the changes you are requesting to the school break parenting time schedule.\n\nPlease write your answer in third person. You can use the AI Assist feature to refine your answer for the Petition.',
     placeholder: 'Describe the school break schedule changes you are requesting...',
     required: true,
     // Engine intercepts this sentinel to route to next selected issue or complete
@@ -660,7 +701,7 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'cs_why_change',
     type: 'textarea',
     question:
-      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Child Support. Please be specific — for example, what has changed in income, employment, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The Respondent has experienced..." rather than "I have experienced..."). You can use the AI assist feature to refine your answer for the Petition.',
+      'Please describe the specific substantial and continuing change in circumstance that has occurred to warrant a modification of Child Support. Please be specific — for example, what has changed in income, employment, or the children\'s needs since the last order was entered?\n\nPlease write your answer in third person (e.g., "The {roleLabel} has experienced..." rather than "I have experienced..."). You can use the AI Assist feature to refine your answer for the Petition.',
     placeholder: 'Describe the specific substantial and continuing change in circumstance...',
     tooltip:
       'A court will only grant a modification if there has been a substantial and continuing change in circumstance since the last order. Simply wanting a different amount is not sufficient. Be specific about what has changed.',

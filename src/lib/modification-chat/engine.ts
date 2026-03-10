@@ -111,6 +111,8 @@ const AUTO_SUBMIT_PREFILL_IDS = new Set([
   'other_party_name',
   'ldm_order_date', 'ldm_court_name', 'ldm_page_number', 'ldm_paragraph_number',
   'pt_order_date', 'pt_court_name', 'pt_page_number', 'pt_paragraph_number',
+  'pt_holiday_page_number', 'pt_holiday_paragraph_number',
+  'pt_break_page_number', 'pt_break_paragraph_number',
   'cs_order_date', 'cs_court_name', 'cs_page_number', 'cs_paragraph_number',
 ]);
 
@@ -671,6 +673,9 @@ function updateDataFromAnswer(
     case 'pt_new_schedule':
       data.pt_newSchedule = answer;
       break;
+    case 'pt_custom_schedule_details':
+      data.pt_customScheduleDetails = answer;
+      break;
     case 'pt_supervised':
       data.pt_supervised = answer.toLowerCase() === 'yes';
       break;
@@ -680,11 +685,23 @@ function updateDataFromAnswer(
     case 'pt_modify_holidays':
       data.pt_modifyHolidays = answer.toLowerCase() === 'yes';
       break;
+    case 'pt_holiday_page_number':
+      data.pt_holidayPageNumber = answer;
+      break;
+    case 'pt_holiday_paragraph_number':
+      data.pt_holidayParagraphNumber = answer;
+      break;
     case 'pt_holiday_changes':
       data.pt_holidayChanges = answer;
       break;
     case 'pt_modify_breaks':
       data.pt_modifyBreaks = answer.toLowerCase() === 'yes';
+      break;
+    case 'pt_break_page_number':
+      data.pt_breakPageNumber = answer;
+      break;
+    case 'pt_break_paragraph_number':
+      data.pt_breakParagraphNumber = answer;
       break;
     case 'pt_break_changes':
       data.pt_breakChanges = answer;
@@ -778,6 +795,17 @@ export function getPrefillValue(
       const s = extracted.sections?.find((x) => x.type === 'parenting_time');
       return s?.paragraphNumber || undefined;
     }
+
+    // PT holiday/break fields — AI extraction may tag these as separate parenting_time sections
+    // For now these won't auto-fill from a single parenting_time section; user enters manually
+    case 'pt_holiday_page_number':
+      return undefined;
+    case 'pt_holiday_paragraph_number':
+      return undefined;
+    case 'pt_break_page_number':
+      return undefined;
+    case 'pt_break_paragraph_number':
+      return undefined;
 
     // CS fields
     case 'cs_order_date': {

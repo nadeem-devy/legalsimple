@@ -62,7 +62,8 @@ function buildUserPrompt(
   questionText: string,
   questionId: string,
   placeholder?: string,
-  tooltip?: string
+  tooltip?: string,
+  role?: string
 ): string {
   const isList =
     questionText.toLowerCase().includes("each item") ||
@@ -88,6 +89,10 @@ function buildUserPrompt(
 
   prompt += formatHint;
 
+  if (role) {
+    prompt += `\n\nIMPORTANT — PARTY ROLE CONTEXT: The user filing this document is the ${role}. When referring to the filing party in third person, use "${role}". When referring to the other party, use "${role === 'Petitioner' ? 'Respondent' : 'Petitioner'}". Do NOT mix up these roles.`;
+  }
+
   prompt += `\n\nUSER'S RAW ANSWER (may be rough, short, or have errors — this is what you must refine):\n${rawText}`;
 
   prompt += `\n\nINSTRUCTION: Read the question above. Read the user's raw answer. Now produce the best, most complete, grammatically correct, legally proper version of their answer. Keep all their facts. Expand fragments into full sentences. Use Arizona family law terminology. Output ONLY the refined answer text — nothing else.`;
@@ -107,7 +112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { rawText, questionText, questionId, placeholder, tooltip } =
+    const { rawText, questionText, questionId, placeholder, tooltip, role } =
       await request.json();
 
     if (!rawText?.trim()) {
@@ -132,7 +137,8 @@ export async function POST(request: NextRequest) {
             questionText || "",
             questionId || "",
             placeholder,
-            tooltip
+            tooltip,
+            role
           ),
         },
       ],

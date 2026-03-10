@@ -141,7 +141,11 @@ function getModifiedText(
 
   if (block.type === 'parenting_time' && mods.includes('parenting_time') && modification.pt) {
     const schedule = formatPtSchedule(modification.pt.newSchedule);
-    let text = `[PROPOSED MODIFICATION] The Court orders ${schedule}. Reason for modification: ${modification.pt.whyChange || '___'}.`;
+    let text = `[PROPOSED MODIFICATION] The Court orders ${schedule}.`;
+    if (modification.pt.newSchedule === 'custom' && modification.pt.customScheduleDetails) {
+      text += ` Specifically, ${modification.pt.customScheduleDetails}`;
+    }
+    text += ` Reason for modification: ${modification.pt.whyChange || '___'}.`;
     if (modification.pt.supervised) {
       text += ` Parenting time shall be supervised${modification.pt.supervisedReason ? ` because: ${modification.pt.supervisedReason}` : ''}.`;
     }
@@ -634,7 +638,7 @@ function PetitionToModify({
               {modification.pt.whyChange || '___'}
             </NumberedParagraph>
             <NumberedParagraph num={++paraNum}>
-              Accordingly, {filingParty} seeks to modify the parties&apos; parenting time schedule to {formatPtSchedule(modification.pt.newSchedule)}.
+              Accordingly, {filingParty} seeks to modify the parties&apos; parenting time schedule to {formatPtSchedule(modification.pt.newSchedule)}.{modification.pt.newSchedule === 'custom' && modification.pt.customScheduleDetails ? ` Specifically, ${modification.pt.customScheduleDetails}` : ''}
             </NumberedParagraph>
             {modification.pt.supervised && (
               <NumberedParagraph num={++paraNum}>
@@ -643,12 +647,12 @@ function PetitionToModify({
             )}
             {modification.pt.modifyHolidays && modification.pt.holidayChanges && (
               <NumberedParagraph num={++paraNum}>
-                {filingParty} further requests that the holiday parenting time schedule be modified as follows: {modification.pt.holidayChanges}
+                {filingParty} further requests that the holiday parenting time schedule{modification.pt.holidayPageNumber || modification.pt.holidayParagraphNumber ? ` (See ${modification.pt.holidayPageNumber ? formatPageRef(modification.pt.holidayPageNumber) : ''}${modification.pt.holidayParagraphNumber ? ` ${formatParagraphRef(modification.pt.holidayParagraphNumber)}` : ''})` : ''} be modified as follows: {modification.pt.holidayChanges}
               </NumberedParagraph>
             )}
             {modification.pt.modifyBreaks && modification.pt.breakChanges && (
               <NumberedParagraph num={++paraNum}>
-                {filingParty} further requests that the school break parenting time schedule be modified as follows: {modification.pt.breakChanges}
+                {filingParty} further requests that the school break parenting time schedule{modification.pt.breakPageNumber || modification.pt.breakParagraphNumber ? ` (See ${modification.pt.breakPageNumber ? formatPageRef(modification.pt.breakPageNumber) : ''}${modification.pt.breakParagraphNumber ? ` ${formatParagraphRef(modification.pt.breakParagraphNumber)}` : ''})` : ''} be modified as follows: {modification.pt.breakChanges}
               </NumberedParagraph>
             )}
             <NumberedParagraph num={++paraNum}>

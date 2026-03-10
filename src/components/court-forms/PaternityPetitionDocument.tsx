@@ -240,6 +240,8 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
             ? 'Petitioner has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'
             : safetyIssues?.hasDrugConviction && safetyIssues.drugConvictionParty === 'significant_other'
             ? 'Respondent has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'
+            : safetyIssues?.drugConvictionUnaware
+            ? `Petitioner alleges that ${petitioner.gender === 'female' ? 'she' : 'he'} does not have sufficient information to either affirm or deny whether Respondent has been convicted of a drug offense or driving under the influence of drugs or alcohol in the last 12 months, and affirmatively avers that ${petitioner.gender === 'female' ? 'she' : 'he'} has not.`
             : 'Neither party has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'}
         </NumberedParagraph>
 
@@ -467,14 +469,16 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         {/* Extracurricular activities */}
         {data.extracurricular && (
           <NumberedParagraph num={++paraNum}>
-            {data.extracurricular.option === 'both_agree_split'
+            {data.extracurricular.option === 'none'
+              ? `The Petitioner does not wish to include the involvement of the ${childCount === 1 ? 'child' : 'children'} in any extracurricular activities at this time.`
+              : data.extracurricular.option === 'both_agree_split'
               ? `Both parties must agree to any extracurricular activities for the ${childCount === 1 ? 'child' : 'children'}, and costs shall be split equally between the parties.`
               : data.extracurricular.option === 'each_selects_pays'
               ? `Each parent may select and enroll the ${childCount === 1 ? 'child' : 'children'} in extracurricular activities during their parenting time, and each parent shall be responsible for the costs of activities they select.`
               : data.extracurricular.option === 'each_selects_limit_split'
               ? `Each parent may select and enroll the ${childCount === 1 ? 'child' : 'children'} in extracurricular activities, up to ${data.extracurricular.limit || 'a reasonable number'} activities per year. Costs shall be split equally between the parties.`
               : data.extracurricular.option === 'other' && data.extracurricular.otherDetails
-              ? `The parties agree to the following arrangement for extracurricular activities: ${data.extracurricular.otherDetails}`
+              ? data.extracurricular.otherDetails
               : `Extracurricular activities shall be determined in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`}
           </NumberedParagraph>
         )}
@@ -516,7 +520,9 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
 
         {/* Health Insurance */}
         <NumberedParagraph num={++paraNum}>
-          {paternity?.healthInsuranceProvider === 'respondent'
+          {paternity?.healthInsuranceProvider === 'both'
+            ? `The Court should order both parties to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}.`
+            : paternity?.healthInsuranceProvider === 'respondent'
             ? `The Court should order Respondent to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}.`
             : `The Court should order Petitioner to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'}.`}
         </NumberedParagraph>
@@ -580,7 +586,9 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               )}
 
               <PrayerItem letter={String.fromCharCode(prayerLetter++)}>
-                {paternity?.healthInsuranceProvider === 'respondent'
+                {paternity?.healthInsuranceProvider === 'both'
+                  ? `Order both parties to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'};`
+                  : paternity?.healthInsuranceProvider === 'respondent'
                   ? `Order Respondent to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'};`
                   : `Order Petitioner to maintain health insurance coverage for the minor ${childCount === 1 ? 'child' : 'children'};`}
               </PrayerItem>

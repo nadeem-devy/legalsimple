@@ -211,6 +211,7 @@ export interface PaternityChatData {
 
   // === DRUG/DUI CONVICTION ===
   hasDrugConviction: boolean;
+  drugConvictionUnaware?: boolean;
   drugConvictionParty?: 'me' | 'significant_other';
 
   // === LEGAL DECISION MAKING ===
@@ -250,7 +251,7 @@ export interface PaternityChatData {
   itineraryNoticeDays?: string;
 
   // === EXTRACURRICULAR ACTIVITIES ===
-  extracurricularOption: 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
+  extracurricularOption: 'none' | 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
   extracurricularLimit?: string;
   extracurricularOtherDetails?: string;
 
@@ -258,7 +259,7 @@ export interface PaternityChatData {
   hasRightOfFirstRefusal: boolean;
 
   // === HEALTH INSURANCE ===
-  healthInsuranceProvider: 'petitioner' | 'respondent';
+  healthInsuranceProvider: 'petitioner' | 'respondent' | 'both';
 
   // === PARENT INFORMATION PROGRAM ===
   hasAttendedParentInfoProgram: boolean;

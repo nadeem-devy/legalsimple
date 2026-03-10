@@ -401,6 +401,7 @@ export function ModificationChatInterface({
 
     setIsRefining(true);
     try {
+      const roleLabel = chatState.data.role === 'petitioner' ? 'Petitioner' : 'Respondent';
       const response = await fetch("/api/intake/refine-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -410,6 +411,7 @@ export function ModificationChatInterface({
           questionId: currentQuestion.id,
           placeholder: currentQuestion.placeholder,
           tooltip: currentQuestion.tooltip,
+          role: roleLabel,
         }),
       });
 
@@ -423,7 +425,7 @@ export function ModificationChatInterface({
     } finally {
       setIsRefining(false);
     }
-  }, [currentInput, currentQuestion, isRefining]);
+  }, [currentInput, currentQuestion, isRefining, chatState.data.role]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf') {
@@ -1103,6 +1105,10 @@ export function ModificationChatInterface({
                 {isRefining ? "Refining..." : "AI Assist"}
               </button>
             </div>
+            <p className="text-xs text-amber-600 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Type your answer, then tap <span className="font-semibold">AI Assist</span> to refine it for your court filing.
+            </p>
             <Button
               onClick={handleSubmit}
               disabled={currentQuestion.required && !currentInput.trim()}
@@ -1136,53 +1142,61 @@ export function ModificationChatInterface({
       default: {
         const isNameField = ["full_name", "spouse_full_name", "child_full_name"].includes(currentQuestion.id);
         return (
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Input
-                ref={inputRef as React.RefObject<HTMLInputElement>}
-                type="text"
-                value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={
-                  currentQuestion.placeholder || "Type your answer..."
-                }
-                spellCheck={true}
-                className={cn(
-                  "h-12 text-base border-slate-200 focus:border-amber-500 focus:ring-amber-500 rounded-xl w-full",
-                  !isNameField && "pr-[90px]"
-                )}
-              />
-              {!isNameField && (
-                <button
-                  type="button"
-                  onClick={handleRefineText}
-                  disabled={isRefining || !currentInput.trim()}
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  type="text"
+                  value={currentInput}
+                  onChange={(e) => setCurrentInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={
+                    currentQuestion.placeholder || "Type your answer..."
+                  }
+                  spellCheck={true}
                   className={cn(
-                    "absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border",
-                    isRefining
-                      ? "opacity-60 cursor-not-allowed border-amber-200 bg-amber-50 text-amber-600"
-                      : !currentInput.trim()
-                        ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                        : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 active:scale-[0.97]"
+                    "h-12 text-base border-slate-200 focus:border-amber-500 focus:ring-amber-500 rounded-xl w-full",
+                    !isNameField && "pr-[90px]"
                   )}
-                >
-                  {isRefining ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <LogoIcon size="sm" className="h-3.5 w-3.5" />
-                  )}
-                  {isRefining ? "Refining..." : "AI Assist"}
-                </button>
-              )}
+                />
+                {!isNameField && (
+                  <button
+                    type="button"
+                    onClick={handleRefineText}
+                    disabled={isRefining || !currentInput.trim()}
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border",
+                      isRefining
+                        ? "opacity-60 cursor-not-allowed border-amber-200 bg-amber-50 text-amber-600"
+                        : !currentInput.trim()
+                          ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                          : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:border-amber-300 active:scale-[0.97]"
+                    )}
+                  >
+                    {isRefining ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <LogoIcon size="sm" className="h-3.5 w-3.5" />
+                    )}
+                    {isRefining ? "Refining..." : "AI Assist"}
+                  </button>
+                )}
+              </div>
+              <Button
+                onClick={handleSubmit}
+                disabled={currentQuestion.required && !currentInput.trim()}
+                className="h-12 px-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-xl"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
             </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={currentQuestion.required && !currentInput.trim()}
-              className="h-12 px-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-xl"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
+            {!isNameField && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Type your answer, then tap <span className="font-semibold">AI Assist</span> to refine it for your court filing.
+              </p>
+            )}
           </div>
         );
       }

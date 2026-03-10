@@ -145,12 +145,17 @@ export interface ModificationChatData {
   pt_paragraphNumber: string;
   pt_whyChange: string;
   pt_newSchedule: string;
+  pt_customScheduleDetails: string;
   pt_supervised: boolean;
   pt_supervisedReason: string;
   pt_currentOrderText: string;
   pt_modifyHolidays: boolean;
+  pt_holidayPageNumber: string;
+  pt_holidayParagraphNumber: string;
   pt_holidayChanges: string;
   pt_modifyBreaks: boolean;
+  pt_breakPageNumber: string;
+  pt_breakParagraphNumber: string;
   pt_breakChanges: string;
 
   // Child Support modification
@@ -197,12 +202,17 @@ export const initialModificationChatData: ModificationChatData = {
   pt_paragraphNumber: '',
   pt_whyChange: '',
   pt_newSchedule: '',
+  pt_customScheduleDetails: '',
   pt_supervised: false,
   pt_supervisedReason: '',
   pt_currentOrderText: '',
   pt_modifyHolidays: false,
+  pt_holidayPageNumber: '',
+  pt_holidayParagraphNumber: '',
   pt_holidayChanges: '',
   pt_modifyBreaks: false,
+  pt_breakPageNumber: '',
+  pt_breakParagraphNumber: '',
   pt_breakChanges: '',
 
   cs_orderDate: '',

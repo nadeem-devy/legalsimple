@@ -589,7 +589,8 @@ function updateDataFromAnswer(
 
     // Drug/DUI Conviction
     case 'drug_conviction_check':
-      data.hasDrugConviction = answer.toLowerCase() === 'yes';
+      data.hasDrugConviction = answer === 'yes';
+      data.drugConvictionUnaware = answer === 'unaware';
       break;
     case 'drug_conviction_who':
       data.drugConvictionParty = answer as 'me' | 'significant_other';
@@ -606,6 +607,9 @@ function updateDataFromAnswer(
     // Parenting Time
     case 'parenting_time_schedule':
       data.parentingTimeSchedule = answer as '3-2-2-3' | '5-2-2-5' | 'alternating_weeks' | 'custom' | 'no_parenting_time';
+      break;
+    case 'custom_schedule_details':
+      data.customScheduleDetails = answer;
       break;
     case 'supervised_check':
       data.isParentingTimeSupervised = answer === 'supervised';
@@ -705,6 +709,9 @@ function updateDataFromAnswer(
     case 'phone_contact':
       data.phoneContactOption = answer as 'normal_hours' | 'custom';
       break;
+    case 'phone_contact_custom_details':
+      data.phoneContactCustomSchedule = answer;
+      break;
     // Vacation
     case 'vacation_time_check':
       data.hasVacationTime = answer.toLowerCase() === 'yes';
@@ -735,7 +742,7 @@ function updateDataFromAnswer(
 
     // Extracurricular
     case 'extracurricular_activities':
-      data.extracurricularOption = answer as 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
+      data.extracurricularOption = answer as 'none' | 'both_agree_split' | 'each_selects_pays' | 'each_selects_limit_split' | 'other';
       break;
     case 'extracurricular_limit':
       data.extracurricularLimit = answer;
@@ -751,7 +758,7 @@ function updateDataFromAnswer(
 
     // Health Insurance
     case 'health_insurance_provider':
-      data.healthInsuranceProvider = answer as 'petitioner' | 'respondent';
+      data.healthInsuranceProvider = answer as 'petitioner' | 'respondent' | 'both';
       break;
 
     // Parent Information Program

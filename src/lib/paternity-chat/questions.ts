@@ -887,13 +887,19 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
   // =====================
   {
     id: 'drug_conviction_check',
-    type: 'yesno',
+    type: 'select',
     question: 'Has either party been convicted for a drug offense or driving under the influence of drugs or alcohol in the last 12 months?',
+    options: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no', label: 'No' },
+      { value: 'unaware', label: 'I have not, but I am unaware if my significant other has' },
+    ],
     tooltip: 'Arizona law requires disclosure of recent drug or DUI convictions as they may affect custody and parenting time decisions.',
     required: true,
     nextQuestionMap: {
       'yes': 'drug_conviction_who',
       'no': 'legal_decision_making',
+      'unaware': 'legal_decision_making',
     },
   },
   {
@@ -998,12 +1004,22 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     tooltip: 'The 3-2-2-3, 5-2-2-5, and alternating weeks schedules all result in equal parenting time (50/50).',
     required: true,
     nextQuestionMap: {
-      'custom': 'supervised_check',
+      'custom': 'custom_schedule_details',
       '3-2-2-3': 'holiday_intro',
       '5-2-2-5': 'holiday_intro',
       'alternating_weeks': 'holiday_intro',
       'no_parenting_time': 'holiday_intro',
     },
+  },
+  {
+    id: 'custom_schedule_details',
+    type: 'textarea',
+    question: 'Please describe your desired parenting time schedule in detail.',
+    description: 'Include which days/times each parent will have the children, weekend arrangements, and any other specifics about how parenting time should be divided.',
+    placeholder: 'Describe your preferred parenting time schedule...',
+    tooltip: 'Be as specific as possible. The court will use this to establish the parenting time order.',
+    required: true,
+    nextQuestionId: 'supervised_check',
   },
   {
     id: 'supervised_check',
@@ -1286,8 +1302,18 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'normal_hours': 'vacation_time_check',
-      'custom': 'vacation_time_check',
+      'custom': 'phone_contact_custom_details',
     },
+  },
+  {
+    id: 'phone_contact_custom_details',
+    type: 'textarea',
+    question: 'Please describe your desired phone/video contact schedule.',
+    description: 'Include specific days, times, and any restrictions for phone or video calls between the children and the non-custodial parent.',
+    placeholder: 'Describe your preferred phone/video contact schedule...',
+    tooltip: 'Be specific about when and how phone/video contact should occur.',
+    required: true,
+    nextQuestionId: 'vacation_time_check',
   },
 
   // =====================
@@ -1399,6 +1425,11 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     question: 'How would you like to handle extracurricular activities for the children?',
     options: [
       {
+        value: 'none',
+        label: 'No extracurricular activities at this time',
+        description: 'I do not wish to include the involvement of the children in any extracurricular activities at this time.',
+      },
+      {
         value: 'both_agree_split',
         label: 'Both parents must agree, costs split evenly',
         description: 'Both parents must agree on all extracurricular activities and cost is evenly split.',
@@ -1422,6 +1453,7 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
     tooltip: 'Extracurricular activities include sports, music lessons, clubs, and other organized activities.',
     required: true,
     nextQuestionMap: {
+      'none': 'right_of_first_refusal',
       'each_selects_limit_split': 'extracurricular_limit',
       'other': 'extracurricular_other_details',
       'both_agree_split': 'right_of_first_refusal',
@@ -1469,10 +1501,11 @@ export const PATERNITY_QUESTIONS: ChatQuestion[] = [
   {
     id: 'health_insurance_provider',
     type: 'select',
-    question: 'Who will be providing medical insurance for the child/children?',
+    question: 'Who will be providing medical/health insurance for the minor child/children?',
     options: [
-      { value: 'petitioner', label: 'I will provide medical insurance' },
-      { value: 'respondent', label: 'My significant other will provide medical insurance' },
+      { value: 'petitioner', label: 'I (Petitioner) will provide health insurance' },
+      { value: 'respondent', label: 'My significant other (Respondent) will provide health insurance' },
+      { value: 'both', label: 'Both parties shall provide medical insurance for the minor child/children' },
     ],
     tooltip: 'The court will order the designated parent to maintain health insurance coverage for the minor child(ren).',
     required: true,
