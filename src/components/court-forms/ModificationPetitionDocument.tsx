@@ -607,21 +607,42 @@ function PetitionToModify({
             : 'and filed with this Court.'}
         </NumberedParagraph>
 
-        {modification.pt?.currentOrderText && (
+        {/* Parenting time citation */}
+        {modification.pt && (
           <NumberedParagraph num={++paraNum}>
-            Pursuant to the existing orders, the parties&apos; parenting time was as follows: &ldquo;{modification.pt.currentOrderText}&rdquo;{modification.pt.pageNumber ? ` (See ${formatPageRef(modification.pt.pageNumber)}${modification.pt.paragraphNumber ? ` ${formatParagraphRef(modification.pt.paragraphNumber)}` : ''})` : ''}
+            Pursuant to the existing orders, the parties&apos; parenting time was as follows:{modification.pt.currentOrderText ? ` \u201C${modification.pt.currentOrderText}\u201D` : ''}{modification.pt.pageNumber ? ` (See ${formatPageRef(modification.pt.pageNumber)}${modification.pt.paragraphNumber ? ` ${formatParagraphRef(modification.pt.paragraphNumber)}` : ''})` : ''}
           </NumberedParagraph>
         )}
 
-        {modification.cs?.currentOrderText && (
+        {/* Holiday schedule citation */}
+        {modification.pt?.modifyHolidays && (
           <NumberedParagraph num={++paraNum}>
-            The existing orders further addressed child support as follows: &ldquo;{modification.cs.currentOrderText}&rdquo;{modification.cs.pageNumber ? ` (See ${formatPageRef(modification.cs.pageNumber)}${modification.cs.paragraphNumber ? ` ${formatParagraphRef(modification.cs.paragraphNumber)}` : ''})` : ''}
+            {modification.pt.holidayNotInOrders
+              ? 'The current Orders do not contain a provision for a holiday parenting time schedule.'
+              : `The existing orders further addressed the holiday parenting time schedule${modification.pt.holidayPageNumber ? ` (See ${formatPageRef(modification.pt.holidayPageNumber)}${modification.pt.holidayParagraphNumber ? ` ${formatParagraphRef(modification.pt.holidayParagraphNumber)}` : ''})` : ''}.`}
           </NumberedParagraph>
         )}
 
-        {modification.ldm?.currentOrderText && (
+        {/* School break schedule citation */}
+        {modification.pt?.modifyBreaks && (
           <NumberedParagraph num={++paraNum}>
-            The existing orders addressed legal decision making as follows: &ldquo;{modification.ldm.currentOrderText}&rdquo;{modification.ldm.pageNumber ? ` (See ${formatPageRef(modification.ldm.pageNumber)}${modification.ldm.paragraphNumber ? ` ${formatParagraphRef(modification.ldm.paragraphNumber)}` : ''})` : ''}
+            {modification.pt.breakNotInOrders
+              ? 'The current Orders do not contain a provision for a school break parenting time schedule.'
+              : `The existing orders further addressed the school break parenting time schedule${modification.pt.breakPageNumber ? ` (See ${formatPageRef(modification.pt.breakPageNumber)}${modification.pt.breakParagraphNumber ? ` ${formatParagraphRef(modification.pt.breakParagraphNumber)}` : ''})` : ''}.`}
+          </NumberedParagraph>
+        )}
+
+        {/* Child support citation */}
+        {modification.cs && (
+          <NumberedParagraph num={++paraNum}>
+            The existing orders further addressed child support{modification.cs.currentOrderText ? ` as follows: \u201C${modification.cs.currentOrderText}\u201D` : ''}{modification.cs.pageNumber ? ` (See ${formatPageRef(modification.cs.pageNumber)}${modification.cs.paragraphNumber ? ` ${formatParagraphRef(modification.cs.paragraphNumber)}` : ''})` : '.'}
+          </NumberedParagraph>
+        )}
+
+        {/* Legal decision making citation */}
+        {modification.ldm && (
+          <NumberedParagraph num={++paraNum}>
+            The existing orders addressed legal decision making{modification.ldm.currentOrderText ? ` as follows: \u201C${modification.ldm.currentOrderText}\u201D` : ''}{modification.ldm.pageNumber ? ` (See ${formatPageRef(modification.ldm.pageNumber)}${modification.ldm.paragraphNumber ? ` ${formatParagraphRef(modification.ldm.paragraphNumber)}` : ''})` : '.'}
           </NumberedParagraph>
         )}
 
@@ -647,12 +668,16 @@ function PetitionToModify({
             )}
             {modification.pt.modifyHolidays && modification.pt.holidayChanges && (
               <NumberedParagraph num={++paraNum}>
-                {filingParty} further requests that the holiday parenting time schedule{modification.pt.holidayPageNumber || modification.pt.holidayParagraphNumber ? ` (See ${modification.pt.holidayPageNumber ? formatPageRef(modification.pt.holidayPageNumber) : ''}${modification.pt.holidayParagraphNumber ? ` ${formatParagraphRef(modification.pt.holidayParagraphNumber)}` : ''})` : ''} be modified as follows: {modification.pt.holidayChanges}
+                {modification.pt.holidayNotInOrders
+                  ? `${filingParty} further requests that the parenting time schedule be modified to include a holiday parenting time schedule as follows: ${modification.pt.holidayChanges}`
+                  : `${filingParty} further requests that the holiday parenting time schedule be modified as follows: ${modification.pt.holidayChanges}`}
               </NumberedParagraph>
             )}
             {modification.pt.modifyBreaks && modification.pt.breakChanges && (
               <NumberedParagraph num={++paraNum}>
-                {filingParty} further requests that the school break parenting time schedule{modification.pt.breakPageNumber || modification.pt.breakParagraphNumber ? ` (See ${modification.pt.breakPageNumber ? formatPageRef(modification.pt.breakPageNumber) : ''}${modification.pt.breakParagraphNumber ? ` ${formatParagraphRef(modification.pt.breakParagraphNumber)}` : ''})` : ''} be modified as follows: {modification.pt.breakChanges}
+                {modification.pt.breakNotInOrders
+                  ? `${filingParty} further requests that the parenting time schedule be modified to include a school break parenting time schedule as follows: ${modification.pt.breakChanges}`
+                  : `${filingParty} further requests that the school break parenting time schedule be modified as follows: ${modification.pt.breakChanges}`}
               </NumberedParagraph>
             )}
             <NumberedParagraph num={++paraNum}>

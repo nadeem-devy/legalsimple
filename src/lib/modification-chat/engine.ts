@@ -483,19 +483,34 @@ function updateDataFromAnswer(
             data.extractedOrderData = extracted;
           }
           // Pre-fill section-specific fields from newly extracted sections
+          // Only take the FIRST match per type for primary fields;
+          // subsequent parenting_time sections fill holiday/break fields
           if (extracted.sections) {
+            let ptCount = 0;
             for (const section of extracted.sections) {
-              if (section.type === 'legal_decision_making') {
+              if (section.type === 'legal_decision_making' && !data.ldm_pageNumber) {
                 if (section.orderDate) data.ldm_orderDate = section.orderDate;
                 if (section.pageNumber) data.ldm_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.ldm_paragraphNumber = section.paragraphNumber;
                 if (section.verbatimText) data.ldm_currentOrderText = section.verbatimText;
               } else if (section.type === 'parenting_time') {
-                if (section.orderDate) data.pt_orderDate = section.orderDate;
-                if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
-                if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
-                if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
-              } else if (section.type === 'child_support') {
+                ptCount++;
+                if (ptCount === 1) {
+                  // First parenting_time section = primary schedule
+                  if (section.orderDate) data.pt_orderDate = section.orderDate;
+                  if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
+                  if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
+                } else if (ptCount === 2) {
+                  // Second parenting_time section = holiday schedule
+                  if (section.pageNumber) data.pt_holidayPageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_holidayParagraphNumber = section.paragraphNumber;
+                } else if (ptCount === 3) {
+                  // Third parenting_time section = break/vacation schedule
+                  if (section.pageNumber) data.pt_breakPageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_breakParagraphNumber = section.paragraphNumber;
+                }
+              } else if (section.type === 'child_support' && !data.cs_pageNumber) {
                 if (section.orderDate) data.cs_orderDate = section.orderDate;
                 if (section.pageNumber) data.cs_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.cs_paragraphNumber = section.paragraphNumber;
@@ -537,19 +552,30 @@ function updateDataFromAnswer(
             }));
           }
           // Pre-fill section-specific fields from extracted sections
+          // Only take the FIRST match per type; subsequent PT sections fill holiday/break
           if (extracted.sections) {
+            let ptCount = 0;
             for (const section of extracted.sections) {
-              if (section.type === 'legal_decision_making') {
+              if (section.type === 'legal_decision_making' && !data.ldm_pageNumber) {
                 if (section.orderDate) data.ldm_orderDate = section.orderDate;
                 if (section.pageNumber) data.ldm_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.ldm_paragraphNumber = section.paragraphNumber;
                 if (section.verbatimText) data.ldm_currentOrderText = section.verbatimText;
               } else if (section.type === 'parenting_time') {
-                if (section.orderDate) data.pt_orderDate = section.orderDate;
-                if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
-                if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
-                if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
-              } else if (section.type === 'child_support') {
+                ptCount++;
+                if (ptCount === 1) {
+                  if (section.orderDate) data.pt_orderDate = section.orderDate;
+                  if (section.pageNumber) data.pt_pageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_paragraphNumber = section.paragraphNumber;
+                  if (section.verbatimText) data.pt_currentOrderText = section.verbatimText;
+                } else if (ptCount === 2) {
+                  if (section.pageNumber) data.pt_holidayPageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_holidayParagraphNumber = section.paragraphNumber;
+                } else if (ptCount === 3) {
+                  if (section.pageNumber) data.pt_breakPageNumber = `Pg. ${section.pageNumber}`;
+                  if (section.paragraphNumber) data.pt_breakParagraphNumber = section.paragraphNumber;
+                }
+              } else if (section.type === 'child_support' && !data.cs_pageNumber) {
                 if (section.orderDate) data.cs_orderDate = section.orderDate;
                 if (section.pageNumber) data.cs_pageNumber = `Pg. ${section.pageNumber}`;
                 if (section.paragraphNumber) data.cs_paragraphNumber = section.paragraphNumber;
@@ -587,6 +613,12 @@ function updateDataFromAnswer(
       break;
     case 'mailing_address':
       data.mailingAddress = answer;
+      break;
+    case 'phone':
+      data.phone = answer;
+      break;
+    case 'email':
+      data.email = answer;
       break;
     case 'other_party_name':
       data.otherPartyName = answer;
@@ -686,7 +718,14 @@ function updateDataFromAnswer(
       data.pt_modifyHolidays = answer.toLowerCase() === 'yes';
       break;
     case 'pt_holiday_page_number':
-      data.pt_holidayPageNumber = answer;
+      if (answer === 'not_listed') {
+        data.pt_holidayNotInOrders = true;
+        data.pt_holidayPageNumber = '';
+        data.pt_holidayParagraphNumber = '';
+      } else {
+        data.pt_holidayNotInOrders = false;
+        data.pt_holidayPageNumber = answer;
+      }
       break;
     case 'pt_holiday_paragraph_number':
       data.pt_holidayParagraphNumber = answer;
@@ -698,7 +737,14 @@ function updateDataFromAnswer(
       data.pt_modifyBreaks = answer.toLowerCase() === 'yes';
       break;
     case 'pt_break_page_number':
-      data.pt_breakPageNumber = answer;
+      if (answer === 'not_listed') {
+        data.pt_breakNotInOrders = true;
+        data.pt_breakPageNumber = '';
+        data.pt_breakParagraphNumber = '';
+      } else {
+        data.pt_breakNotInOrders = false;
+        data.pt_breakPageNumber = answer;
+      }
       break;
     case 'pt_break_paragraph_number':
       data.pt_breakParagraphNumber = answer;
@@ -796,16 +842,23 @@ export function getPrefillValue(
       return s?.paragraphNumber || undefined;
     }
 
-    // PT holiday/break fields — AI extraction may tag these as separate parenting_time sections
-    // For now these won't auto-fill from a single parenting_time section; user enters manually
-    case 'pt_holiday_page_number':
-      return undefined;
-    case 'pt_holiday_paragraph_number':
-      return undefined;
-    case 'pt_break_page_number':
-      return undefined;
-    case 'pt_break_paragraph_number':
-      return undefined;
+    // PT holiday/break fields — use 2nd and 3rd parenting_time sections if available
+    case 'pt_holiday_page_number': {
+      const ptSections = extracted.sections?.filter((x) => x.type === 'parenting_time') || [];
+      return ptSections[1]?.pageNumber ? `Pg. ${ptSections[1].pageNumber}` : undefined;
+    }
+    case 'pt_holiday_paragraph_number': {
+      const ptSections = extracted.sections?.filter((x) => x.type === 'parenting_time') || [];
+      return ptSections[1]?.paragraphNumber || undefined;
+    }
+    case 'pt_break_page_number': {
+      const ptSections = extracted.sections?.filter((x) => x.type === 'parenting_time') || [];
+      return ptSections[2]?.pageNumber ? `Pg. ${ptSections[2].pageNumber}` : undefined;
+    }
+    case 'pt_break_paragraph_number': {
+      const ptSections = extracted.sections?.filter((x) => x.type === 'parenting_time') || [];
+      return ptSections[2]?.paragraphNumber || undefined;
+    }
 
     // CS fields
     case 'cs_order_date': {

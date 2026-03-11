@@ -280,10 +280,12 @@ export interface NormalizedPDFData {
       supervisedReason: string;
       currentOrderText: string;
       modifyHolidays: boolean;
+      holidayNotInOrders: boolean;
       holidayPageNumber: string;
       holidayParagraphNumber: string;
       holidayChanges: string;
       modifyBreaks: boolean;
+      breakNotInOrders: boolean;
       breakPageNumber: string;
       breakParagraphNumber: string;
       breakChanges: string;
@@ -791,8 +793,8 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
       address: petitionerAddress,
       county: '',
       ssn4: '',
-      phone: '',
-      email: '',
+      phone: isRespondent ? '' : (data.phone || ''),
+      email: isRespondent ? '' : (data.email || ''),
       gender: 'male',
     },
 
@@ -801,8 +803,8 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
       dateOfBirth: '',
       address: respondentAddress,
       ssn4: '',
-      phone: '',
-      email: '',
+      phone: isRespondent ? (data.phone || '') : '',
+      email: isRespondent ? (data.email || '') : '',
     },
 
     marriage: {
@@ -872,10 +874,12 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
         supervisedReason: data.pt_supervisedReason || '',
         currentOrderText: data.pt_currentOrderText || '',
         modifyHolidays: data.pt_modifyHolidays || false,
+        holidayNotInOrders: data.pt_holidayNotInOrders || false,
         holidayPageNumber: data.pt_holidayPageNumber || '',
         holidayParagraphNumber: data.pt_holidayParagraphNumber || '',
         holidayChanges: data.pt_holidayChanges || '',
         modifyBreaks: data.pt_modifyBreaks || false,
+        breakNotInOrders: data.pt_breakNotInOrders || false,
         breakPageNumber: data.pt_breakPageNumber || '',
         breakParagraphNumber: data.pt_breakParagraphNumber || '',
         breakChanges: data.pt_breakChanges || '',

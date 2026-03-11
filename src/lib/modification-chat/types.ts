@@ -115,6 +115,8 @@ export interface ModificationChatData {
   // Personal Information
   fullName: string;
   mailingAddress: string;
+  phone: string;
+  email: string;
 
   // Other Party
   otherPartyName: string;
@@ -143,6 +145,8 @@ export interface ModificationChatData {
   pt_courtName: string;
   pt_pageNumber: string;
   pt_paragraphNumber: string;
+  pt_holidayNotInOrders: boolean;
+  pt_breakNotInOrders: boolean;
   pt_whyChange: string;
   pt_newSchedule: string;
   pt_customScheduleDetails: string;
@@ -178,6 +182,8 @@ export const initialModificationChatData: ModificationChatData = {
 
   fullName: '',
   mailingAddress: '',
+  phone: '',
+  email: '',
 
   otherPartyName: '',
   otherPartyAddress: '',
@@ -200,6 +206,8 @@ export const initialModificationChatData: ModificationChatData = {
   pt_courtName: '',
   pt_pageNumber: '',
   pt_paragraphNumber: '',
+  pt_holidayNotInOrders: false,
+  pt_breakNotInOrders: false,
   pt_whyChange: '',
   pt_newSchedule: '',
   pt_customScheduleDetails: '',

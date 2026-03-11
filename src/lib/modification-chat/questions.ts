@@ -184,6 +184,22 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     question: 'What is your current mailing address?',
     placeholder: '123 Main Street, Phoenix, AZ 85001',
     required: true,
+    nextQuestionId: 'phone',
+  },
+  {
+    id: 'phone',
+    type: 'phone',
+    question: 'What is your phone number?',
+    placeholder: 'e.g., (602) 555-1234',
+    required: true,
+    nextQuestionId: 'email',
+  },
+  {
+    id: 'email',
+    type: 'email',
+    question: 'What is your email address?',
+    placeholder: 'e.g., john@example.com',
+    required: true,
     nextQuestionId: 'other_party_name',
   },
   {
@@ -584,8 +600,14 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_holiday_page_number',
     type: 'select',
     question: 'What page number refers to the holiday parenting time schedule in the existing orders?',
-    options: PAGE_NUMBER_OPTIONS,
+    options: [
+      { value: 'not_listed', label: 'Not listed in the Orders' },
+      ...PAGE_NUMBER_OPTIONS,
+    ],
     required: true,
+    nextQuestionMap: {
+      not_listed: 'pt_holiday_changes',
+    },
     nextQuestionId: 'pt_holiday_paragraph_number',
   },
   {
@@ -620,8 +642,14 @@ export const MODIFICATION_QUESTIONS: ChatQuestion[] = [
     id: 'pt_break_page_number',
     type: 'select',
     question: 'What page number refers to the school break parenting time schedule in the existing orders?',
-    options: PAGE_NUMBER_OPTIONS,
+    options: [
+      { value: 'not_listed', label: 'Not listed in the Orders' },
+      ...PAGE_NUMBER_OPTIONS,
+    ],
     required: true,
+    nextQuestionMap: {
+      not_listed: 'pt_break_changes',
+    },
     nextQuestionId: 'pt_break_paragraph_number',
   },
   {
