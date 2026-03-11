@@ -184,6 +184,7 @@ export interface PaternityChatData {
 
   // === SEEKING CHILD SUPPORT ===
   seekingChildSupport: boolean;
+  wantsChildSupportWaiver?: boolean;
   hasVoluntaryChildSupport?: boolean;
   voluntaryChildSupportDetails?: string;
   voluntaryPaymentWho?: 'petitioner' | 'respondent';

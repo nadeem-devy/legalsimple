@@ -267,6 +267,27 @@ export function processAnswer(state: ChatState, answer: string): ChatState {
   // Determine next question
   let nextQuestionId = getNextQuestion(question, answer);
 
+  // DV + LDM redundancy fix: When domestic violence option is 'no_joint_decision',
+  // auto-set legal decision making to sole for the non-DV party and skip the LDM question
+  if (nextQuestionId === 'legal_decision_making' && newData.hasDomesticViolence && newData.domesticViolenceOption === 'no_joint_decision') {
+    // Award sole LDM to the non-violent party
+    if (newData.domesticViolenceCommittedBy === 'petitioner') {
+      newData.legalDecisionMaking = 'respondent_sole';
+    } else {
+      newData.legalDecisionMaking = 'petitioner_sole';
+    }
+    nextQuestionId = 'parenting_time_schedule';
+
+    // Add system message explaining the auto-decision
+    const dvParty = newData.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'Respondent';
+    const nonDvParty = newData.domesticViolenceCommittedBy === 'petitioner' ? 'Respondent' : 'Petitioner';
+    const systemMsg = createMessage(
+      'system',
+      `Based on your domestic violence disclosure, joint legal decision-making cannot be awarded to ${dvParty} pursuant to A.R.S. §25-403.03. Sole legal decision-making has been automatically assigned to ${nonDvParty}.`
+    );
+    newMessages.push(systemMsg);
+  }
+
   // Check for completion
   if (nextQuestionId === 'complete' || !nextQuestionId) {
     return {
@@ -460,6 +481,9 @@ function updateDataFromAnswer(
     case 'child_support_check':
       data.seekingChildSupport = answer.toLowerCase() === 'yes';
       break;
+    case 'child_support_waiver':
+      data.wantsChildSupportWaiver = answer.toLowerCase() === 'yes';
+      break;
     case 'voluntary_support_check':
       data.hasVoluntaryChildSupport = answer.toLowerCase() === 'yes';
       break;
@@ -488,7 +512,13 @@ function updateDataFromAnswer(
       newTempData.priorCaseState = answer;
       break;
     case 'prior_case_county':
+    case 'prior_case_county_text':
       newTempData.priorCaseCounty = answer;
+      break;
+    case 'prior_case_number_known':
+      if (answer.toLowerCase() === 'no') {
+        newTempData.priorCaseNumber = 'Unknown';
+      }
       break;
     case 'prior_case_number':
       newTempData.priorCaseNumber = answer;
@@ -523,7 +553,13 @@ function updateDataFromAnswer(
       newTempData.affectingCaseState = answer;
       break;
     case 'affecting_case_county':
+    case 'affecting_case_county_text':
       newTempData.affectingCaseCounty = answer;
+      break;
+    case 'affecting_case_number_known':
+      if (answer.toLowerCase() === 'no') {
+        newTempData.affectingCaseNumber = 'Unknown';
+      }
       break;
     case 'affecting_case_number':
       newTempData.affectingCaseNumber = answer;

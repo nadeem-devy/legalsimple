@@ -90,6 +90,7 @@ export interface NormalizedPDFData {
   // Child support
   childSupport?: {
     seeking: boolean;
+    wantsWaiver?: boolean;
     hasVoluntaryPayments?: boolean;
     voluntaryPaymentsDetails?: string;
     voluntaryPaymentWho?: string;
@@ -666,6 +667,7 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
 
     childSupport: {
       seeking: data.seekingChildSupport || false,
+      wantsWaiver: data.wantsChildSupportWaiver || false,
       hasVoluntaryPayments: data.hasVoluntaryChildSupport,
       voluntaryPaymentsDetails: data.voluntaryChildSupportDetails,
       voluntaryPaymentWho: data.voluntaryPaymentWho,

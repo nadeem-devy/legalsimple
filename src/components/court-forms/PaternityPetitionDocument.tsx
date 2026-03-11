@@ -318,7 +318,7 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
               {(() => {
                 const sched = (parentingTime.schedule || '').toLowerCase();
                 if (sched === 'no_parenting_time') return `Petitioner requests that Respondent have no parenting time with the minor ${childCount === 1 ? 'child' : 'children'}.`;
-                if (sched === 'custom') return `Petitioner requests a regular parenting time schedule that provides meaningful, substantial, and continuing parenting time to both parties, that is in the best interests of the ${childCount === 1 ? 'child' : 'children'}.`;
+                if (sched === 'custom') return `Petitioner requests the following parenting time schedule: ${parentingTime.customDetails || `a schedule that provides meaningful, substantial, and continuing parenting time to both parties, that is in the best interests of the ${childCount === 1 ? 'child' : 'children'}`}.`;
                 if (sched === '3-2-2-3') return `Petitioner requests equal parenting time following a 3-2-2-3 schedule.`;
                 if (sched === '5-2-2-5') return `Petitioner requests equal parenting time following a 5-2-2-5 schedule.`;
                 if (sched === 'alternating_weeks') return `Petitioner requests equal parenting time following an alternating weeks schedule.`;
@@ -515,7 +515,9 @@ export function PaternityPetitionDocument({ data, signature }: PaternityPetition
         <NumberedParagraph num={++paraNum}>
           {childSupport?.seeking
             ? `The Court should award child support in accordance with the Arizona Child Support Guidelines.${childSupport.hasVoluntaryPayments ? ` ${childSupport.voluntaryPaymentsDetails || 'Voluntary child support payments have been made which should be accounted for.'}` : ''}`
-            : 'The Court should award child support, however at this time Petitioner is willing to waive any child support.'}
+            : childSupport?.wantsWaiver
+            ? 'The Court should award child support, however at this time Petitioner is willing to waive any child support.'
+            : `The Court should award child support in accordance with the Arizona Child Support Guidelines.`}
         </NumberedParagraph>
 
         {/* Health Insurance */}
