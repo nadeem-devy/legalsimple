@@ -306,6 +306,8 @@ export function NvDivorceWithChildrenChatInterface({
   const [currentInput, setCurrentInput] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savedCaseId, setSavedCaseId] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [dateValue, setDateValue] = useState<Date | undefined>(undefined);
   const [dateOpen, setDateOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
@@ -511,15 +513,18 @@ export function NvDivorceWithChildrenChatInterface({
         // Clear persisted state on successful completion
         localStorage.removeItem(storageKey);
         localStorage.removeItem(historyKey);
+        const resolvedCaseId = result.caseId || caseId;
+        setSavedCaseId(resolvedCaseId);
         toast.success("Questionnaire completed successfully!");
 
         if (onComplete) {
           onComplete(newState.data);
         } else {
-          router.push(`/cases/${result.caseId || caseId}?generate=true`);
+          router.push(`/cases/${resolvedCaseId}?generate=true`);
         }
       } catch (error) {
         console.error("Error saving intake:", error);
+        setSaveFailed(true);
         toast.error("Failed to save your responses. Please try again.");
       } finally {
         setIsSubmitting(false);
@@ -1219,47 +1224,72 @@ export function NvDivorceWithChildrenChatInterface({
         {/* Completion State */}
         {chatState.isComplete && (
           <div className="flex gap-3 justify-start">
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-md">
-              <CheckCircle2 className="h-4 w-4 text-white" />
+            <div className={`flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br ${saveFailed ? 'from-red-500 to-red-600' : isSubmitting ? 'from-yellow-500 to-yellow-600' : 'from-green-500 to-green-600'} flex items-center justify-center shadow-md`}>
+              {saveFailed ? <AlertTriangle className="h-4 w-4 text-white" /> : isSubmitting ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <CheckCircle2 className="h-4 w-4 text-white" />}
             </div>
-            <div className="max-w-[85%] rounded-2xl px-5 py-4 bg-green-50 border border-green-200">
-              <p className="text-sm font-semibold text-green-800 mb-2">
-                Questionnaire Complete!
-              </p>
-              <p className="text-sm text-green-700 leading-relaxed mb-4">
-                Your responses have been saved. Choose an option below:
-              </p>
-              <div className="space-y-2">
-                <Button
-                  className="w-full bg-green-600 hover:bg-green-700 h-11 px-5 rounded-lg justify-start"
-                  onClick={() => router.push(`/cases/${caseId}?generate=true`)}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generate Documents
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full h-11 px-5 rounded-lg justify-start border-purple-300 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(`/api/cases/${caseId}/request-lawyer`, {
-                        method: "POST",
-                      });
-                      if (response.ok) {
-                        toast.success("Your case has been forwarded for lawyer review!");
-                        router.push(`/cases/${caseId}`);
-                      } else {
-                        toast.error("Failed to forward case. Please try again.");
-                      }
-                    } catch {
-                      toast.error("Failed to forward case. Please try again.");
-                    }
-                  }}
-                >
-                  <Scale className="h-4 w-4 mr-2" />
-                  Forward to Lawyer Review
-                </Button>
-              </div>
+            <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${saveFailed ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+              {isSubmitting ? (
+                <>
+                  <p className="text-sm font-semibold text-yellow-800 mb-2">Saving your responses...</p>
+                  <p className="text-sm text-yellow-700 leading-relaxed">Please wait while we save your case.</p>
+                </>
+              ) : saveFailed ? (
+                <>
+                  <p className="text-sm font-semibold text-red-800 mb-2">Failed to save your responses</p>
+                  <p className="text-sm text-red-700 leading-relaxed mb-4">There was an error saving your case. Please try again.</p>
+                  <Button
+                    className="w-full bg-red-600 hover:bg-red-700 h-11 px-5 rounded-lg justify-start"
+                    onClick={() => {
+                      setSaveFailed(false);
+                      handleSubmit();
+                    }}
+                  >
+                    Retry Save
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-green-800 mb-2">
+                    Questionnaire Complete!
+                  </p>
+                  <p className="text-sm text-green-700 leading-relaxed mb-4">
+                    Your responses have been saved. Choose an option below:
+                  </p>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700 h-11 px-5 rounded-lg justify-start"
+                      disabled={!savedCaseId}
+                      onClick={() => router.push(`/cases/${savedCaseId}?generate=true`)}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Generate Documents
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full h-11 px-5 rounded-lg justify-start border-purple-300 text-purple-700 hover:bg-purple-50 hover:text-purple-800"
+                      disabled={!savedCaseId}
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(`/api/cases/${savedCaseId}/request-lawyer`, {
+                            method: "POST",
+                          });
+                          if (response.ok) {
+                            toast.success("Your case has been forwarded for lawyer review!");
+                            router.push(`/cases/${savedCaseId}`);
+                          } else {
+                            toast.error("Failed to forward case. Please try again.");
+                          }
+                        } catch {
+                          toast.error("Failed to forward case. Please try again.");
+                        }
+                      }}
+                    >
+                      <Scale className="h-4 w-4 mr-2" />
+                      Forward to Lawyer Review
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
