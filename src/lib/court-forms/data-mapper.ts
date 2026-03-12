@@ -5,11 +5,24 @@ import type { DivorceChatData, HomeProperty, RetirementInfo, VehicleInfo } from 
 import type { DivorceWithChildrenChatData, ChildInfo, HolidaySchedule, BreakSchedule } from '@/lib/divorce-with-children-chat/types';
 import type { PaternityChatData, PriorCourtCase, CustodyClaimant } from '@/lib/paternity-chat/types';
 import type { ModificationChatData, OrderContentBlock } from '@/lib/modification-chat/types';
+import type {
+  NvDivorceWithChildrenChatData,
+  PriorCustodyCase as NvPriorCustodyCase,
+  AffectingCase,
+  OtherCustodyClaimant,
+  ChildResidenceHistory,
+  ChildSupportFactor,
+  HolidaySchedule as NvHolidaySchedule,
+  BreakSchedule as NvBreakSchedule,
+} from '@/lib/nv-divorce-with-children-chat/types';
 
 // Normalized PDF data structure
 export interface NormalizedPDFData {
   // Case type
   caseType: 'divorce_no_children' | 'divorce_with_children' | 'establish_paternity' | 'modification';
+
+  // State (defaults to AZ)
+  state?: 'AZ' | 'NV';
 
   // Petitioner (You)
   petitioner: {
@@ -300,6 +313,99 @@ export interface NormalizedPDFData {
       whyChange: string;
       currentOrderText: string;
     };
+  };
+
+  // Nevada-specific fields
+  nevada?: {
+    // Marriage location
+    marriageLocation: string;
+    // Residency (who meets 6-week requirement)
+    residencyWho: 'plaintiff' | 'defendant' | 'both';
+    // Pregnancy is a 3-value in NV
+    pregnancyStatus: 'yes' | 'no' | 'unknown';
+
+    // UCCJEA Declaration
+    childrenLivedInNevada6Months: boolean;
+    childResidenceAddress: string;
+    childResidenceDuration: string;
+    childResidenceHistory: ChildResidenceHistory[];
+    hasPriorCustodyCases: boolean;
+    priorCustodyCases: NvPriorCustodyCase[];
+    hasAffectingCases: boolean;
+    affectingCases: AffectingCase[];
+    hasOtherCustodyClaimants: boolean;
+    otherCustodyClaimants: OtherCustodyClaimant[];
+
+    // Custody (separate legal and physical in NV)
+    legalCustody: string;
+    physicalCustody: string;
+
+    // Parenting time
+    regularScheduleDetails: string;
+    summerSameAsRegular: boolean;
+    summerScheduleDetails?: string;
+    holidaySchedule: NvHolidaySchedule;
+    breakSchedule: NvBreakSchedule;
+
+    // Child support income
+    plaintiffPayFrequency: string;
+    plaintiffIncome: string;
+    plaintiffHoursPerWeek?: string;
+    plaintiffMonthlyIncome?: number;
+    plaintiffBelowMinimum?: boolean;
+    defendantPayFrequency: string;
+    defendantIncome?: string;
+    defendantHoursPerWeek?: string;
+    defendantMonthlyIncome?: number;
+    defendantBelowMinimum?: boolean;
+
+    // Existing CSE order
+    hasExistingCseOrder: boolean;
+    cseCaseNumber?: string;
+    csePayingParent?: string;
+    cseMonthlyAmount?: string;
+
+    // Child support seeking
+    seekingChildSupport: boolean;
+
+    // Public assistance
+    hasPublicAssistance: boolean;
+
+    // Back child support
+    seekingBackChildSupport: boolean;
+    backCsDaHandling?: boolean;
+    backCsDaCaseNumber?: string;
+    backCsPayingParent?: string;
+    backCsStartDate?: string;
+
+    // Child care expenses
+    hasChildCareExpenses: boolean;
+    childCareMonthlyAmount?: string;
+    childCarePaidBy?: string;
+
+    // Medical insurance
+    medicalInsuranceType: string;
+    medicalPremiumAmount?: string;
+    medicalPremiumPaidBy?: string;
+
+    // Special factors
+    childSupportFactors: ChildSupportFactor[];
+    deviationAmount?: string;
+
+    // Tax deductions
+    taxDeductionOption: string;
+    taxDeductionPlaintiffChildren?: string;
+    taxDeductionDefendantChildren?: string;
+    taxDeductionPlaintiffYears?: string;
+
+    // Spousal support
+    seekingSpousalSupport: boolean;
+    spousalSupportPayer?: string;
+    spousalSupportAmount?: string;
+
+    // Name restoration
+    wantsNameRestoration: boolean;
+    formerName?: string;
   };
 
   // Other orders
@@ -772,6 +878,180 @@ function mapPaternityData(data: PaternityChatData): NormalizedPDFData {
   };
 }
 
+// Map Nevada divorce with children chat data
+function mapNvDivorceWithChildrenData(data: NvDivorceWithChildrenChatData): NormalizedPDFData {
+  return {
+    caseType: 'divorce_with_children',
+    state: 'NV',
+
+    petitioner: {
+      name: data.fullName || '',
+      dateOfBirth: '',
+      address: data.mailingAddress || '',
+      county: data.county || '',
+      ssn4: '',
+      phone: data.phone || '',
+      email: data.email || '',
+      gender: 'male', // NV doesn't collect gender
+    },
+
+    respondent: {
+      name: data.defendantFullName || '',
+      dateOfBirth: '',
+      address: '',
+      ssn4: '',
+      phone: '',
+      email: '',
+    },
+
+    marriage: {
+      date: data.dateOfMarriage || '',
+      meetsResidency: true,
+      isPregnant: data.isPregnant === 'yes',
+      pregnancyDueDate: data.pregnancyDueDate,
+      pregnantParty: data.pregnantParty === 'plaintiff' ? 'petitioner' : data.pregnantParty === 'defendant' ? 'respondent' : undefined,
+    },
+
+    children: {
+      list: (data.children || []).map(c => ({ ...c, gender: 'male' as const })),
+      meetResidency: data.childrenLivedInNevada6Months || false,
+      resideWith: 'both',
+      bornBeforeMarriage: false,
+    },
+
+    childSupport: {
+      seeking: data.seekingChildSupport || false,
+    },
+
+    custody: {
+      legalDecisionMaking: data.legalCustody || 'joint',
+    },
+
+    property: {
+      hasAgreement: false,
+      allCovered: false,
+      hasRealEstate: data.hasHome || false,
+      realEstate: (data.homes || []).map(h => ({ ...h, hasDisclaimerDeed: false })),
+      hasFurniture: false,
+      hasAppliances: false,
+      personalPropertyPreference: data.personalPropertyPreference,
+      personalPropertyMine: data.personalPropertyMine,
+      personalPropertySpouse: data.personalPropertySpouse,
+      bankAccountsStructured: data.bankAccountsStructured,
+      hasRetirement: data.hasRetirement || false,
+      retirement: data.retirementAccounts || [],
+      hasVehicles: data.hasVehicles || false,
+      vehicles: data.vehicles || [],
+      hasSeparateProperty: data.hasSeparateProperty || false,
+      petitionerSeparateProperty: data.mySeparatePropertyList,
+      respondentSeparateProperty: data.spouseSeparatePropertyList,
+    },
+
+    debts: {
+      hasCommunityDebt: data.hasCommunityDebt || false,
+      communityDebtPreference: data.communityDebtPreference,
+      creditCards: data.creditCards,
+      hasStudentLoanDebt: data.hasStudentLoanDebt,
+      studentLoanDivision: data.studentLoanDivision,
+      studentLoanOtherDetails: data.studentLoanOtherDetails,
+      hasMedicalDebt: data.hasMedicalDebt,
+      medicalDebtDivision: data.medicalDebtDivision,
+      medicalDebtOtherDetails: data.medicalDebtOtherDetails,
+      hasOtherCommunityDebt: data.hasOtherCommunityDebt,
+      otherCommunityDebtDescription: data.otherCommunityDebtDescription,
+      otherCommunityDebtDivision: data.otherCommunityDebtDivision,
+      otherCommunityDebtOtherDetails: data.otherCommunityDebtOtherDetails,
+      hasSeparateDebt: data.hasSeparateDebt || false,
+      petitionerSeparateDebt: data.mySeparateDebtList,
+      respondentSeparateDebt: data.spouseSeparateDebtList,
+    },
+
+    taxFiling: {
+      currentYear: 'separately',
+      hasPreviousUnfiled: false,
+    },
+
+    maintenance: {
+      entitlement: data.seekingSpousalSupport ? (data.spousalSupportPayer === 'defendant' ? 'me' : 'spouse') : 'neither',
+    },
+
+    nevada: {
+      marriageLocation: data.marriageLocation || '',
+      residencyWho: data.residencyWho || 'both',
+      pregnancyStatus: data.isPregnant || 'no',
+
+      childrenLivedInNevada6Months: data.childrenLivedInNevada6Months || false,
+      childResidenceAddress: data.childResidenceAddress || '',
+      childResidenceDuration: data.childResidenceDuration || '',
+      childResidenceHistory: data.childResidenceHistory || [],
+      hasPriorCustodyCases: data.hasPriorCustodyCases || false,
+      priorCustodyCases: data.priorCustodyCases || [],
+      hasAffectingCases: data.hasAffectingCases || false,
+      affectingCases: data.affectingCases || [],
+      hasOtherCustodyClaimants: data.hasOtherCustodyClaimants || false,
+      otherCustodyClaimants: data.otherCustodyClaimants || [],
+
+      legalCustody: data.legalCustody || 'joint',
+      physicalCustody: data.physicalCustody || 'joint',
+
+      regularScheduleDetails: data.regularScheduleDetails || '',
+      summerSameAsRegular: data.summerSameAsRegular !== false,
+      summerScheduleDetails: data.summerScheduleDetails,
+      holidaySchedule: data.holidaySchedule,
+      breakSchedule: data.breakSchedule,
+
+      plaintiffPayFrequency: data.plaintiffPayFrequency || 'monthly',
+      plaintiffIncome: data.plaintiffIncome || '',
+      plaintiffHoursPerWeek: data.plaintiffHoursPerWeek,
+      plaintiffMonthlyIncome: data.plaintiffMonthlyIncome,
+      plaintiffBelowMinimum: data.plaintiffBelowMinimum,
+      defendantPayFrequency: data.defendantPayFrequency || 'monthly',
+      defendantIncome: data.defendantIncome,
+      defendantHoursPerWeek: data.defendantHoursPerWeek,
+      defendantMonthlyIncome: data.defendantMonthlyIncome,
+      defendantBelowMinimum: data.defendantBelowMinimum,
+
+      hasExistingCseOrder: data.hasExistingCseOrder || false,
+      cseCaseNumber: data.cseCaseNumber,
+      csePayingParent: data.csePayingParent,
+      cseMonthlyAmount: data.cseMonthlyAmount,
+
+      seekingChildSupport: data.seekingChildSupport || false,
+
+      hasPublicAssistance: data.hasPublicAssistance || false,
+
+      seekingBackChildSupport: data.seekingBackChildSupport || false,
+      backCsDaHandling: data.backCsDaHandling,
+      backCsDaCaseNumber: data.backCsDaCaseNumber,
+      backCsPayingParent: data.backCsPayingParent,
+      backCsStartDate: data.backCsStartDate,
+
+      hasChildCareExpenses: data.hasChildCareExpenses || false,
+      childCareMonthlyAmount: data.childCareMonthlyAmount,
+      childCarePaidBy: data.childCarePaidBy,
+
+      medicalInsuranceType: data.medicalInsuranceType || 'medicaid',
+      medicalPremiumAmount: data.medicalPremiumAmount,
+      medicalPremiumPaidBy: data.medicalPremiumPaidBy,
+
+      childSupportFactors: data.childSupportFactors || [],
+      deviationAmount: data.deviationAmount,
+
+      taxDeductionOption: data.taxDeductionOption || 'per_federal_law',
+      taxDeductionPlaintiffChildren: data.taxDeductionPlaintiffChildren,
+      taxDeductionDefendantChildren: data.taxDeductionDefendantChildren,
+      taxDeductionPlaintiffYears: data.taxDeductionPlaintiffYears,
+
+      seekingSpousalSupport: data.seekingSpousalSupport || false,
+      spousalSupportPayer: data.spousalSupportPayer,
+      spousalSupportAmount: data.spousalSupportAmount,
+
+      wantsNameRestoration: data.wantsNameRestoration || false,
+      formerName: data.formerName,
+    },
+  };
+}
+
 // Main mapping function - detects format and normalizes
 // Map modification chat data
 function mapModificationData(data: ModificationChatData): NormalizedPDFData {
@@ -901,7 +1181,8 @@ function mapModificationData(data: ModificationChatData): NormalizedPDFData {
 
 export function mapIntakeDataToPDF(
   data: unknown,
-  subType: string
+  subType: string,
+  state?: string
 ): NormalizedPDFData {
   const intakeData = data as Record<string, unknown>;
 
@@ -915,6 +1196,11 @@ export function mapIntakeDataToPDF(
   }
 
   const isWithChildren = subType?.includes('with_children');
+
+  // Nevada divorce with children
+  if (isWithChildren && state === 'NV') {
+    return mapNvDivorceWithChildrenData(intakeData as unknown as NvDivorceWithChildrenChatData);
+  }
 
   if (isWithChildren) {
     return mapDivorceWithChildrenData(intakeData as unknown as DivorceWithChildrenChatData);

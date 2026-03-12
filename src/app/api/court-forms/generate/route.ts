@@ -13,6 +13,7 @@ import { HealthInsuranceNoticeDocument } from "@/components/court-forms/HealthIn
 import { ParentInfoProgramDocument } from "@/components/court-forms/ParentInfoProgramDocument";
 import { PaternityPetitionDocument } from "@/components/court-forms/PaternityPetitionDocument";
 import { ModificationPetitionDocument } from "@/components/court-forms/ModificationPetitionDocument";
+import { NvComplaintDocument } from "@/components/court-forms/NvComplaintDocument";
 import { mapIntakeDataToPDF } from "@/lib/court-forms/data-mapper";
 import { autoCorrectIntakeData } from "@/lib/court-forms/text-cleanup";
 
@@ -180,8 +181,11 @@ export async function POST(request: NextRequest) {
     // Auto-correct spelling in free-text fields before PDF generation
     const correctedData = autoCorrectIntakeData(intakeData as Record<string, unknown>);
 
+    // Get state from case data (defaults to AZ for existing cases)
+    const caseState = (caseData as Record<string, unknown>)?.state as string | undefined;
+
     // Map intake data to PDF format
-    const pdfData = mapIntakeDataToPDF(correctedData, subType);
+    const pdfData = mapIntakeDataToPDF(correctedData, subType, caseState);
 
     // Generate PDF based on format
     let pdfBuffer: Buffer;
@@ -227,6 +231,14 @@ export async function POST(request: NextRequest) {
           })
         );
         filename = `paternity-petition-${caseId}.pdf`;
+      } else if (caseState === 'NV') {
+        pdfBuffer = await renderToBuffer(
+          NvComplaintDocument({
+            data: pdfData,
+            caseNumber: caseData?.case_number as string || undefined,
+          })
+        );
+        filename = `complaint-for-divorce-${caseId}.pdf`;
       } else {
         pdfBuffer = await renderToBuffer(
           PetitionDocument({
@@ -298,6 +310,16 @@ export async function POST(request: NextRequest) {
         })
       );
       filename = `paternity-petition-${caseId}.pdf`;
+    } else if (format === 'pleading' && caseState === 'NV') {
+      // NV uses the complaint format instead of AZ pleading format
+      pdfBuffer = await renderToBuffer(
+        NvComplaintDocument({
+          data: pdfData,
+          caseNumber: caseData?.case_number as string || undefined,
+          signature: signature as string || undefined,
+        })
+      );
+      filename = `complaint-for-divorce-${caseId}.pdf`;
     } else {
       const DocumentComponent = format === 'pleading' ? PleadingDocument : PDFDocument;
       pdfBuffer = await renderToBuffer(

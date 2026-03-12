@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { DivorceChatInterface } from "@/components/divorce-chat";
 import { DivorceWithChildrenChatInterface } from "@/components/divorce-with-children-chat";
+import { NvDivorceWithChildrenChatInterface } from "@/components/nv-divorce-with-children-chat";
 import { PaternityChatInterface } from "@/components/paternity-chat";
 import { ModificationChatInterface } from "@/components/modification-chat";
 
@@ -255,8 +256,9 @@ export default function NewCasePage() {
       );
     }
 
-    // Divorce with children - use the children chat interface
+    // Divorce with children - use state-specific chat interface
     if (selectedSubType === "divorce_with_children") {
+      const isNevada = selectedState === "NV";
       return (
         <div className="max-w-5xl mx-auto">
           <div className="mb-4">
@@ -265,15 +267,23 @@ export default function NewCasePage() {
               Back to Selection
             </Button>
             <h1 className="text-2xl font-bold text-slate-900 mb-1">
-              Divorce Petition (With Children) - Arizona
+              {isNevada
+                ? "Complaint for Divorce (With Children) - Nevada"
+                : "Divorce Petition (With Children) - Arizona"}
             </h1>
             <p className="text-slate-600">
-              Answer questions one at a time to complete your divorce petition with custody and support arrangements.
+              {isNevada
+                ? "Answer questions one at a time to complete your Nevada divorce complaint with custody, child support, and UCCJEA declaration."
+                : "Answer questions one at a time to complete your divorce petition with custody and support arrangements."}
             </p>
           </div>
           <Card className="border-slate-200 shadow-lg overflow-hidden">
             <CardContent className="p-0">
-              <DivorceWithChildrenChatInterface caseId={caseId || undefined} />
+              {isNevada ? (
+                <NvDivorceWithChildrenChatInterface caseId={caseId || undefined} />
+              ) : (
+                <DivorceWithChildrenChatInterface caseId={caseId || undefined} />
+              )}
             </CardContent>
           </Card>
         </div>
@@ -395,9 +405,9 @@ export default function NewCasePage() {
               </SelectContent>
             </Select>
 
-            {selectedState && selectedState !== "AZ" && (
+            {selectedState && selectedState !== "AZ" && selectedState !== "NV" && (
               <p className="mt-4 text-sm text-amber-600">
-                Note: Currently, only Arizona forms are available. More states coming soon!
+                Note: Currently, only Arizona and Nevada forms are available. More states coming soon!
               </p>
             )}
           </CardContent>

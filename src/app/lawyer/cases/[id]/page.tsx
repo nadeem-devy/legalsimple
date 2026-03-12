@@ -262,6 +262,7 @@ function CaseDetailView({ caseData }: { caseData: typeof DEMO_CASE }) {
                 caseId={caseData.id}
                 caseName={caseData.case_number}
                 caseSubType={caseData.sub_type}
+                caseState={caseData.state}
               />
             </CardContent>
           </Card>

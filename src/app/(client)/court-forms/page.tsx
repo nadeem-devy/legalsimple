@@ -184,6 +184,7 @@ export default async function CourtFormsPage() {
                     caseName={caseItem.case_number || caseItem.id}
                     petitionerName={caseItem.plaintiff_name}
                     caseSubType={caseItem.sub_type}
+                    caseState={caseItem.state}
                     wantsInjunction={getWantsInjunction(caseItem.intake_sessions)}
                   />
                 </div>

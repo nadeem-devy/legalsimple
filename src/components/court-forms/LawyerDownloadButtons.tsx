@@ -31,16 +31,19 @@ interface LawyerDownloadButtonsProps {
   caseId: string;
   caseName: string;
   caseSubType?: string;
+  caseState?: string;
 }
 
 export function LawyerDownloadButtons({
   caseId,
   caseName,
   caseSubType,
+  caseState,
 }: LawyerDownloadButtonsProps) {
   const hasChildren = caseSubType === "divorce_with_children" || caseSubType === "establish_paternity";
   const isPaternity = caseSubType === "establish_paternity";
   const isModification = caseSubType === "modification";
+  const isNevada = caseState === "NV";
   const [isLoading, setIsLoading] = useState<PDFFormat | null>(null);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -110,13 +113,14 @@ export function LawyerDownloadButtons({
     childrenOnly?: boolean;
     divorceOnly?: boolean;
     hideForModification?: boolean;
+    azOnly?: boolean;
   }[] = [
     {
-      format: isModification ? "modification_petition" : isPaternity ? "petition" : "pleading",
-      label: isModification ? "Petition to Modify" : "Petitions",
+      format: isModification ? "modification_petition" : isPaternity ? "petition" : isNevada ? "petition" : "pleading",
+      label: isModification ? "Petition to Modify" : isNevada ? "Complaint" : "Petitions",
       icon: <Scale className="h-4 w-4" />,
       style: "bg-violet-600 hover:bg-violet-700 text-white",
-      title: isModification ? "Petition to Modify Existing Court Orders" : isPaternity ? "Petition to Establish Paternity" : "Petition for Dissolution with line numbers",
+      title: isModification ? "Petition to Modify Existing Court Orders" : isPaternity ? "Petition to Establish Paternity" : isNevada ? "Complaint for Divorce (Nevada)" : "Petition for Dissolution with line numbers",
     },
     {
       format: "sensitive_data",
@@ -124,6 +128,7 @@ export function LawyerDownloadButtons({
       icon: <ShieldAlert className="h-4 w-4" />,
       style: "border-amber-300 text-amber-700 hover:bg-amber-50",
       title: "Confidential sensitive data coversheet",
+      azOnly: true,
     },
     {
       format: "summons",
@@ -131,6 +136,7 @@ export function LawyerDownloadButtons({
       icon: <Send className="h-4 w-4" />,
       style: "border-blue-300 text-blue-700 hover:bg-blue-50",
       title: "Official court summons",
+      azOnly: true,
     },
     {
       format: "notice_creditors",
@@ -140,6 +146,7 @@ export function LawyerDownloadButtons({
       title: "Notice Regarding Creditors",
       divorceOnly: true,
       hideForModification: true,
+      azOnly: true,
     },
     {
       format: "health_insurance",
@@ -149,6 +156,7 @@ export function LawyerDownloadButtons({
       title: "Notice of Rights About Health Insurance",
       divorceOnly: true,
       hideForModification: true,
+      azOnly: true,
     },
     {
       format: "preliminary_injunction",
@@ -157,6 +165,7 @@ export function LawyerDownloadButtons({
       style: "border-red-300 text-red-700 hover:bg-red-50",
       title: "Preliminary Injunction per A.R.S. §25-315",
       hideForModification: true,
+      azOnly: true,
     },
     {
       format: "parent_info_program",
@@ -166,6 +175,7 @@ export function LawyerDownloadButtons({
       title: "Parent Information Program Order",
       childrenOnly: true,
       hideForModification: true,
+      azOnly: true,
     },
   ];
 
@@ -173,7 +183,7 @@ export function LawyerDownloadButtons({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {forms
-          .filter((f) => (!f.childrenOnly || hasChildren) && (!f.divorceOnly || !isPaternity) && (!f.hideForModification || !isModification))
+          .filter((f) => (!f.childrenOnly || hasChildren) && (!f.divorceOnly || !isPaternity) && (!f.hideForModification || !isModification) && (!f.azOnly || !isNevada))
           .map((form) => (
             <Button
               key={form.format}
@@ -203,7 +213,7 @@ export function LawyerDownloadButtons({
         <Button
           onClick={() => {
             forms
-              .filter((f) => (!f.childrenOnly || hasChildren) && (!f.divorceOnly || !isPaternity) && (!f.hideForModification || !isModification))
+              .filter((f) => (!f.childrenOnly || hasChildren) && (!f.divorceOnly || !isPaternity) && (!f.hideForModification || !isModification) && (!f.azOnly || !isNevada))
               .forEach((f, i) => {
                 setTimeout(() => downloadPdf(f.format), i * 1500);
               });

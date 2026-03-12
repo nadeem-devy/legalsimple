@@ -48,6 +48,11 @@ export async function POST(request: NextRequest) {
       return handleModificationChatIntake(supabase, user.id, caseId, data);
     }
 
+    // Handle Nevada divorce with children chat intake
+    if (intakeType === "nv_divorce_with_children_chat" && data) {
+      return handleNvDivorceWithChildrenChatIntake(supabase, user.id, caseId, data);
+    }
+
     // Handle legacy AI chat intake format
     if (!caseId || !intakeData) {
       return NextResponse.json(
@@ -1062,4 +1067,192 @@ function generateModificationChatSummary(data: any): string {
   }
 
   return parts.join("\n");
+}
+
+/**
+ * Handle Nevada divorce with children chat intake
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleNvDivorceWithChildrenChatIntake(
+  supabase: any,
+  userId: string,
+  caseId: string | undefined,
+  chatData: any
+) {
+  try {
+    let targetCaseId = caseId;
+
+    if (!targetCaseId) {
+      const { data: newCase, error: createError } = await supabase
+        .from("cases")
+        .insert({
+          client_id: userId,
+          case_type: "family_law",
+          sub_type: "divorce_with_children",
+          state: "NV",
+          county: chatData.county,
+          city: "",
+          status: "intake",
+          case_number: "",
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error("Error creating case:", createError);
+        return NextResponse.json(
+          { error: "Failed to create case" },
+          { status: 500 }
+        );
+      }
+
+      targetCaseId = newCase.id;
+    }
+
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      status: "pending_review",
+      plaintiff_name: chatData.fullName,
+      plaintiff_address: chatData.mailingAddress,
+      defendant_name: chatData.defendantFullName,
+      defendant_type: "individual",
+      state: "NV",
+      county: chatData.county,
+      sub_type: "divorce_with_children",
+      incident_date: chatData.dateOfMarriage,
+      ai_summary: generateNvDivorceWithChildrenSummary(chatData),
+      complexity_score: calculateNvDivorceWithChildrenComplexity(chatData),
+      lawyer_recommended: shouldRecommendLawyerNvDivorceWithChildren(chatData),
+    };
+
+    const { data: updatedCase, error: updateError } = await supabase
+      .from("cases")
+      .update(updateData)
+      .eq("id", targetCaseId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating case:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update case" },
+        { status: 500 }
+      );
+    }
+
+    const { error: sessionError } = await supabase
+      .from("intake_sessions")
+      .upsert({
+        case_id: targetCaseId,
+        current_step: "complete",
+        collected_data: chatData,
+        completed: true,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: "case_id",
+      });
+
+    if (sessionError) {
+      console.error("Error saving intake session:", sessionError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      caseId: targetCaseId,
+      case: updatedCase,
+      message: "Nevada divorce with children chat intake saved successfully",
+    });
+
+  } catch (error) {
+    console.error("NV divorce with children chat intake error:", error);
+    return NextResponse.json(
+      { error: "Failed to save NV divorce with children chat intake" },
+      { status: 500 }
+    );
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function generateNvDivorceWithChildrenSummary(data: any): string {
+  const parts: string[] = [];
+
+  parts.push(`Complaint for Divorce and UCCJEA Declaration (With Children) - Nevada`);
+  parts.push(`Plaintiff: ${data.fullName}`);
+  parts.push(`Defendant: ${data.defendantFullName}`);
+  parts.push(`Marriage Date: ${data.dateOfMarriage}`);
+  parts.push(`Marriage Location: ${data.marriageLocation}`);
+  parts.push(`Filing County: ${data.county} County, Nevada`);
+
+  if (data.children?.length > 0) {
+    parts.push(`Minor Children: ${data.children.map((c: any) => c.name).join(", ")}`);
+  }
+
+  if (data.legalCustody) {
+    const labels: Record<string, string> = {
+      'joint': 'Joint Legal Custody',
+      'plaintiff_sole': 'Plaintiff Sole Legal Custody',
+      'defendant_sole': 'Defendant Sole Legal Custody',
+      'no_home_state': 'Nevada is not home state',
+    };
+    parts.push(`Legal Custody: ${labels[data.legalCustody] || data.legalCustody}`);
+  }
+
+  if (data.physicalCustody) {
+    const labels: Record<string, string> = {
+      'joint': 'Joint Physical Custody',
+      'plaintiff_primary': 'Plaintiff Primary Physical Custody',
+      'defendant_primary': 'Defendant Primary Physical Custody',
+      'no_home_state': 'Nevada is not home state',
+    };
+    parts.push(`Physical Custody: ${labels[data.physicalCustody] || data.physicalCustody}`);
+  }
+
+  if (data.seekingChildSupport) {
+    parts.push(`Child Support: Requested`);
+  }
+
+  const propertyItems: string[] = [];
+  if (data.homes?.length > 0) propertyItems.push(`${data.homes.length} real estate properties`);
+  if (data.retirementAccounts?.length > 0) propertyItems.push(`${data.retirementAccounts.length} retirement accounts`);
+  if (data.vehicles?.length > 0) propertyItems.push(`${data.vehicles.length} vehicles`);
+
+  if (propertyItems.length > 0) {
+    parts.push(`Community Property: ${propertyItems.join(", ")}`);
+  }
+
+  if (data.seekingSpousalSupport) {
+    parts.push(`Spousal Support/Alimony: Requested`);
+  }
+
+  return parts.join("\n");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function calculateNvDivorceWithChildrenComplexity(data: any): number {
+  let score = 4;
+
+  if (data.children?.length > 2) score += 1;
+  if (data.hasPriorCustodyCases) score += 1;
+  if (data.hasAffectingCases) score += 1;
+  if (data.hasOtherCustodyClaimants) score += 1;
+  if (data.homes?.length > 0) score += data.homes.length;
+  if (data.retirementAccounts?.length > 0) score += data.retirementAccounts.length;
+  if (data.vehicles?.length > 2) score += 1;
+  if (data.seekingSpousalSupport) score += 2;
+  if (data.seekingBackChildSupport) score += 1;
+
+  return Math.min(score, 10);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function shouldRecommendLawyerNvDivorceWithChildren(data: any): boolean {
+  if (data.hasAffectingCases) return true;
+  if (data.hasOtherCustodyClaimants) return true;
+  if (data.hasPriorCustodyCases && data.priorCustodyCases?.length > 1) return true;
+  if (data.seekingSpousalSupport) return true;
+  if (data.homes?.length > 1) return true;
+  if (data.children?.length > 3) return true;
+  if (calculateNvDivorceWithChildrenComplexity(data) >= 7) return true;
+
+  return false;
 }

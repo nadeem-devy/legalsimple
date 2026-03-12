@@ -12,16 +12,18 @@ interface DownloadButtonProps {
   caseName: string;
   petitionerName?: string;
   caseSubType?: string;
+  caseState?: string;
   wantsInjunction?: boolean;
 }
 
 // Key for storing signature in localStorage
 const SIGNATURE_STORAGE_KEY = "legalsimple_petitioner_signature";
 
-export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner", caseSubType, wantsInjunction = true }: DownloadButtonProps) {
+export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner", caseSubType, caseState, wantsInjunction = true }: DownloadButtonProps) {
   const hasChildren = caseSubType === 'divorce_with_children' || caseSubType === 'establish_paternity';
   const isPaternity = caseSubType === 'establish_paternity';
   const isModification = caseSubType === 'modification';
+  const isNevada = caseState === 'NV';
   const [isLoading, setIsLoading] = useState<PDFFormat | null>(null);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -134,14 +136,14 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
     <>
       <div className="flex flex-col items-end gap-2">
         <div className="flex flex-wrap gap-2 justify-end">
-          {/* Petitions Format Button */}
+          {/* Petitions / Complaint Format Button */}
           <Button
-            onClick={() => handleDownloadClick(isModification ? 'modification_petition' : isPaternity ? 'petition' : 'pleading')}
+            onClick={() => handleDownloadClick(isModification ? 'modification_petition' : isPaternity ? 'petition' : isNevada ? 'petition' : 'pleading')}
             disabled={isLoading !== null}
             variant="default"
             size="sm"
             className="gap-1.5"
-            title={isModification ? "Petition to Modify Existing Court Orders" : isPaternity ? "Petition to Establish Paternity" : "Petition for Dissolution with line numbers"}
+            title={isModification ? "Petition to Modify Existing Court Orders" : isPaternity ? "Petition to Establish Paternity" : isNevada ? "Complaint for Divorce (Nevada)" : "Petition for Dissolution with line numbers"}
           >
             {(isLoading === 'pleading' || isLoading === 'petition' || isLoading === 'modification_petition') ? (
               <>
@@ -151,13 +153,13 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             ) : (
               <>
                 <Scale className="h-4 w-4" />
-                <span className="hidden sm:inline">{isModification ? 'Petition to Modify' : 'Petitions'}</span>
+                <span className="hidden sm:inline">{isModification ? 'Petition to Modify' : isNevada ? 'Complaint' : 'Petitions'}</span>
               </>
             )}
           </Button>
 
-          {/* Preliminary Injunction Button - only show if user selected injunction, not for modification */}
-          {wantsInjunction && !isModification && (
+          {/* Preliminary Injunction Button - AZ only, only show if user selected injunction, not for modification */}
+          {wantsInjunction && !isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('preliminary_injunction')}
               disabled={isLoading !== null}
@@ -204,8 +206,8 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Sensitive Data Coversheet Button - Not for Modification */}
-          {!isModification && (
+          {/* Sensitive Data Coversheet Button - AZ only, Not for Modification */}
+          {!isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('sensitive_data')}
               disabled={isLoading !== null}
@@ -228,8 +230,8 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Summons Button - Not for Modification */}
-          {!isModification && (
+          {/* Summons Button - AZ only, Not for Modification */}
+          {!isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('summons')}
               disabled={isLoading !== null}
@@ -252,8 +254,8 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Notice Regarding Creditors Button - Divorce only */}
-          {!isPaternity && !isModification && (
+          {/* Notice Regarding Creditors Button - AZ Divorce only */}
+          {!isPaternity && !isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('notice_creditors')}
               disabled={isLoading !== null}
@@ -276,8 +278,8 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Health Insurance Notice Button - Divorce only */}
-          {!isPaternity && !isModification && (
+          {/* Health Insurance Notice Button - AZ Divorce only */}
+          {!isPaternity && !isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('health_insurance')}
               disabled={isLoading !== null}
@@ -300,8 +302,8 @@ export function DownloadButton({ caseId, caseName, petitionerName = "Petitioner"
             </Button>
           )}
 
-          {/* Parent Info Program Button - Only for Divorce with Children or Paternity */}
-          {hasChildren && !isModification && (
+          {/* Parent Info Program Button - AZ only, Only for Divorce with Children or Paternity */}
+          {hasChildren && !isModification && !isNevada && (
             <Button
               onClick={() => handleDownloadClick('parent_info_program')}
               disabled={isLoading !== null}
