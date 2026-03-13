@@ -356,6 +356,9 @@ export function DivorceChatInterface({
     if (currentQuestion.type === "info") {
       const newState = processAnswer(chatState, "continue");
       setChatState(processCurrentQuestion(newState));
+      if (newState.isComplete) {
+        saveIntakeData(newState.data);
+      }
       return;
     }
 

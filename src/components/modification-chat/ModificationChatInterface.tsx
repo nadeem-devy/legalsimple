@@ -244,6 +244,33 @@ export function ModificationChatInterface({
       setStateHistory((prev) => [...prev, chatState]);
       const newState = processAnswer(chatState, "continue");
       setChatState(processCurrentQuestion(newState));
+      if (newState.isComplete) {
+        // Trigger save inline since we return early from info handling
+        setIsSubmitting(true);
+        try {
+          const response = await fetch("/api/cases/save-intake", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ caseId, intakeType: "modification_chat", data: newState.data }),
+          });
+          if (!response.ok) throw new Error("Failed to save intake data");
+          const result = await response.json();
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(historyKey);
+          if (result.caseId) setSavedCaseId(result.caseId);
+          toast.success("Questionnaire completed successfully!");
+          if (onComplete) { onComplete(newState.data); }
+          else {
+            const targetCaseId = result.caseId || caseId;
+            router.push(targetCaseId ? `/cases/${targetCaseId}?generate=true` : '/court-forms');
+          }
+        } catch (error) {
+          console.error("Error saving intake:", error);
+          toast.error("Failed to save your responses. Please try again.");
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
       return;
     }
 
