@@ -271,6 +271,7 @@ const SKIP_KEYS = new Set([
   // Divorce enum fields
   'divorceReason', 'maintenanceEntitlement', 'propertyDivisionMethod',
   'debtDivisionMethod', 'petitionerBiologicalRole',
+  'currentYearTaxFiling', 'previousTaxOption',
   // Modification enum fields
   'role', 'modificationsSelected',
   'ldm_modificationType', 'ldm_courtName', 'ldm_pageNumber', 'ldm_paragraphNumber', 'ldm_orderDate',
