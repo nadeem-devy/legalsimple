@@ -254,6 +254,21 @@ export function DivorceChatInterface({
           localStorage.removeItem(historyKey);
           return startChat();
         }
+        // Clear stale stopped/completed state from before the engine fix
+        if (parsed.isStopped || parsed.isComplete) {
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(historyKey);
+          return startChat();
+        }
+        // Clear pre-fix state where stop question was saved but isStopped wasn't set
+        if (parsed.currentQuestionId) {
+          const q = getQuestionById(parsed.currentQuestionId);
+          if (q && q.type === 'stop') {
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(historyKey);
+            return startChat();
+          }
+        }
         parsed.messages = parsed.messages.map((m: ChatMessage) => ({
           ...m,
           timestamp: new Date(m.timestamp),
