@@ -394,44 +394,53 @@ export function PaternityChatInterface({
 
     // Check if complete
     if (newState.isComplete) {
-      setIsSubmitting(true);
-      try {
-        const response = await fetch("/api/cases/save-intake", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            caseId,
-            intakeType: "establish_paternity_chat",
-            data: newState.data,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to save intake data");
-        }
-
-        const result = await response.json();
-        // Clear persisted state on successful completion
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(historyKey);
-        const resolvedCaseId = result.caseId || caseId;
-        setSavedCaseId(resolvedCaseId);
-        toast.success("Questionnaire completed successfully!");
-
-        if (onComplete) {
-          onComplete(newState.data);
-        } else {
-          router.push(`/cases/${resolvedCaseId}?generate=true`);
-        }
-      } catch (error) {
-        console.error("Error saving intake:", error);
-        setSaveFailed(true);
-        toast.error("Failed to save your responses. Please try again.");
-      } finally {
-        setIsSubmitting(false);
-      }
+      saveIntakeData(newState.data);
     }
   }, [chatState, currentQuestion, currentInput, selectedOptions, dateValue, caseId, onComplete, router]);
+
+  // Extracted save function so it can be retried independently
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const saveIntakeData = useCallback(async (data?: any) => {
+    const intakeData = data || chatState.data;
+    setIsSubmitting(true);
+    setSaveFailed(false);
+    try {
+      const response = await fetch("/api/cases/save-intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId,
+          intakeType: "establish_paternity_chat",
+          data: intakeData,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        console.error("Save intake failed:", response.status, errorBody);
+        throw new Error(`Failed to save intake data (${response.status})`);
+      }
+
+      const result = await response.json();
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(historyKey);
+      const resolvedCaseId = result.caseId || caseId;
+      setSavedCaseId(resolvedCaseId);
+      toast.success("Questionnaire completed successfully!");
+
+      if (onComplete) {
+        onComplete(intakeData);
+      } else {
+        router.push(`/cases/${resolvedCaseId}?generate=true`);
+      }
+    } catch (error) {
+      console.error("Error saving intake:", error);
+      setSaveFailed(true);
+      toast.error("Failed to save your responses. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [caseId, chatState.data, onComplete, router, storageKey, historyKey]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1134,10 +1143,7 @@ export function PaternityChatInterface({
                   <p className="text-sm text-red-700 leading-relaxed mb-4">There was an error saving your case. Please try again.</p>
                   <Button
                     className="w-full bg-red-600 hover:bg-red-700 h-11 px-5 rounded-lg justify-start"
-                    onClick={() => {
-                      setSaveFailed(false);
-                      handleSubmit();
-                    }}
+                    onClick={() => saveIntakeData()}
                   >
                     Retry Save
                   </Button>
