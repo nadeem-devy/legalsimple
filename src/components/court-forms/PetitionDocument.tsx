@@ -274,7 +274,11 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
         </View>
         <View style={styles.fieldRow}>
           <Text style={styles.fieldLabel}>Place of Marriage:</Text>
-          <Text style={styles.fieldLine}>{''}</Text>
+          <Text style={styles.fieldLine}>
+            {marriage.county && marriage.state
+              ? `${marriage.county} County, State of ${marriage.state}`
+              : marriage.county || ''}
+          </Text>
         </View>
 
         <View style={styles.bodyText}>
@@ -496,6 +500,11 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
             The parties have a written agreement for division of all property and debts.
           </Text>
         </View>
+        {property.hasAgreement && property.agreementDetails && (
+          <View style={styles.bodyText}>
+            <Text><Text style={styles.bold}>Agreement Details:</Text> {property.agreementDetails}</Text>
+          </View>
+        )}
         <View style={styles.inlineCheckboxRow}>
           <Checkbox checked={!property.hasAgreement} />
           <Text style={styles.inlineCheckboxLabel}>
@@ -884,6 +893,21 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
               {maintenance.reasons.map(r => formatMaintenanceReasonSentence(r, maintenance.entitlement === 'me' ? 'Petitioner' : 'Respondent')).join('. ')}.
             </Text>
           </View>
+        )}
+
+        {/* Name Restoration */}
+        {nameRestoration?.petitionerWants && (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionNumber}>{nextSection()}.</Text>
+              <Text style={styles.sectionTitle}>NAME RESTORATION</Text>
+            </View>
+            <View style={styles.bodyText}>
+              <Text>
+                {petitioner.name || 'Petitioner'} requests that {petitioner.gender === 'male' ? 'his' : 'her'} former name of {nameRestoration.petitionerName || ''} be restored.
+              </Text>
+            </View>
+          </>
         )}
 
         {/* Written Agreement */}

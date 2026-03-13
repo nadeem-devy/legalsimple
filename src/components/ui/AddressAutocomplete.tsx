@@ -50,6 +50,7 @@ export function AddressAutocomplete({
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -66,7 +67,11 @@ export function AddressAutocomplete({
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setShowDropdown(false);
       }
     }
@@ -222,6 +227,7 @@ export function AddressAutocomplete({
   const dropdownContent =
     showDropdown && predictions.length > 0 && dropdownPos ? (
       <div
+        ref={dropdownRef}
         style={{
           position: "absolute",
           top: dropdownPos.top,

@@ -59,6 +59,20 @@ export function processCurrentQuestion(state: ChatState): ChatState {
   let questionText = question.question;
   questionText = questionText.replace('{county}', state.data.county || 'your');
 
+  // Dynamic text for military deployment question based on who is in armed forces
+  if (question.id === 'military_deployed') {
+    if (state.data.militaryWho === 'spouse') {
+      questionText = 'Is your spouse currently deployed?';
+    } else {
+      questionText = 'Are you currently deployed?';
+    }
+  }
+  if (question.id === 'military_deploy_location') {
+    if (state.data.militaryWho === 'spouse') {
+      questionText = 'Where is your spouse currently deployed?';
+    }
+  }
+
   // Add description if present to provide more context
   const fullText = question.description
     ? `${questionText}\n\n${question.description}`
@@ -190,6 +204,17 @@ function updateDataFromAnswer(
     case 'date_of_marriage':
       data.dateOfMarriage = answer;
       break;
+    case 'marriage_county_state':
+      // Parse "Maricopa County, Arizona" or "Maricopa, Arizona" format
+      const parts = answer.split(',').map(s => s.trim());
+      if (parts.length >= 2) {
+        data.marriageCounty = parts[0].replace(/\s*county\s*/i, '').trim();
+        data.marriageState = parts[1].trim();
+      } else {
+        data.marriageCounty = answer;
+        data.marriageState = '';
+      }
+      break;
 
     // Spouse Information
     case 'spouse_full_name':
@@ -207,11 +232,29 @@ function updateDataFromAnswer(
     case 'spouse_mailing_address':
       data.spouseMailingAddress = answer;
       break;
+    case 'spouse_ssn_known':
+      data.spouseSsnKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spouseSsn4 = 'Unknown';
+      }
+      break;
     case 'spouse_ssn4':
       data.spouseSsn4 = answer;
       break;
+    case 'spouse_phone_known':
+      data.spousePhoneKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spousePhone = 'Not listed';
+      }
+      break;
     case 'spouse_phone':
       data.spousePhone = answer;
+      break;
+    case 'spouse_email_known':
+      data.spouseEmailKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spouseEmail = 'Not listed';
+      }
       break;
     case 'spouse_email':
       data.spouseEmail = answer;
@@ -238,6 +281,9 @@ function updateDataFromAnswer(
       break;
     case 'military_check':
       data.isMilitary = answer.toLowerCase() === 'yes';
+      break;
+    case 'military_who':
+      data.militaryWho = answer as 'me' | 'spouse';
       break;
     case 'military_deployed':
       data.isCurrentlyDeployed = answer.toLowerCase() === 'yes';
@@ -508,6 +554,9 @@ function updateDataFromAnswer(
       break;
 
     // Other Orders
+    case 'other_orders_check':
+      data.hasOtherOrders = answer.toLowerCase() === 'yes';
+      break;
     case 'other_orders':
       data.otherOrders = answer;
       break;

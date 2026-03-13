@@ -602,22 +602,19 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
           let sepLetterNum = 97; // ASCII 'a'
           const allItems: { text: string; key: string }[] = [];
 
-          if (property.courtDecidesSeparateProperty) {
-            const parts = property.courtDecidesSeparateProperty.split(',').map(s => s.trim());
-            for (let i = 0; i < parts.length; i += 2) {
-              allItems.push({ text: `${parts[i]}${parts[i + 1] ? ` - awarded to ${parts[i + 1]}` : ''}`, key: `sp-court-${i}` });
-            }
-          } else {
-            if (property.petitionerSeparateProperty) {
-              property.petitionerSeparateProperty.split(',').forEach((item, i) => {
-                allItems.push({ text: `${item.trim()} - awarded to Petitioner`, key: `sp-pet-${i}` });
-              });
-            }
-            if (property.respondentSeparateProperty) {
-              property.respondentSeparateProperty.split(',').forEach((item, i) => {
-                allItems.push({ text: `${item.trim()} - awarded to Respondent`, key: `sp-res-${i}` });
-              });
-            }
+          if (property.petitionerSeparateProperty) {
+            property.petitionerSeparateProperty.split(',').forEach((item, i) => {
+              allItems.push({ text: `${item.trim()} - awarded to Petitioner`, key: `sp-pet-${i}` });
+            });
+          }
+          if (property.respondentSeparateProperty) {
+            property.respondentSeparateProperty.split(',').forEach((item, i) => {
+              allItems.push({ text: `${item.trim()} - awarded to Respondent`, key: `sp-res-${i}` });
+            });
+          }
+          if (allItems.length === 0 && property.courtDecidesSeparateProperty) {
+            // Fallback: show the court-decides text as a single item
+            allItems.push({ text: property.courtDecidesSeparateProperty, key: 'sp-court-0' });
           }
 
           return (
@@ -677,6 +674,13 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
                 ? ' The parties have previously unfiled tax returns which shall be filed jointly.'
                 : ' The parties have previously unfiled tax returns which shall be filed separately.'
               : ''}
+          </NumberedParagraph>
+        )}
+
+        {/* NAME RESTORATION */}
+        {nameRestoration?.petitionerWants && (
+          <NumberedParagraph num={++paraNum}>
+            {petitioner.name || 'Petitioner'} requests that {petitioner.gender === 'male' ? 'his' : 'her'} former name of {nameRestoration.petitionerName || '_____________________'} be restored.
           </NumberedParagraph>
         )}
 

@@ -50,6 +50,8 @@ export interface NormalizedPDFData {
   // Marriage
   marriage: {
     date: string;
+    county?: string;
+    state?: string;
     separationDate?: string;
     meetsResidency: boolean;
     isPregnant: boolean;
@@ -64,6 +66,7 @@ export interface NormalizedPDFData {
   // Military
   military?: {
     isMilitary: boolean;
+    who?: 'me' | 'spouse';
     isDeployed?: boolean;
     deploymentLocation?: string;
   };
@@ -440,6 +443,8 @@ function mapDivorceNoChildrenData(data: DivorceChatData): NormalizedPDFData {
 
     marriage: {
       date: data.dateOfMarriage || '',
+      county: data.marriageCounty,
+      state: data.marriageState,
       meetsResidency: data.meetsResidencyRequirement || false,
       isPregnant: data.isPregnant || false,
       pregnancyDueDate: data.pregnancyDueDate,
@@ -452,6 +457,7 @@ function mapDivorceNoChildrenData(data: DivorceChatData): NormalizedPDFData {
 
     military: {
       isMilitary: data.isMilitary || false,
+      who: data.militaryWho,
       isDeployed: data.isCurrentlyDeployed,
       deploymentLocation: data.deploymentLocation,
     },

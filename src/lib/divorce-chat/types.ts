@@ -74,6 +74,8 @@ export interface DivorceChatData {
   phone: string;
   dateOfBirth: string;
   dateOfMarriage: string;
+  marriageCounty?: string;
+  marriageState?: string;
 
   // Spouse Information
   spouseFullName: string;
@@ -81,8 +83,11 @@ export interface DivorceChatData {
   spouseDateOfBirth: string;
   spouseAddressKnown: boolean;
   spouseMailingAddress: string;
+  spouseSsnKnown: boolean;
   spouseSsn4: string;
+  spousePhoneKnown: boolean;
   spousePhone: string;
+  spouseEmailKnown: boolean;
   spouseEmail: string;
 
   // Residency & Status
@@ -99,6 +104,7 @@ export interface DivorceChatData {
 
   // Military
   isMilitary: boolean;
+  militaryWho?: 'me' | 'spouse';
   isCurrentlyDeployed?: boolean;
   deploymentLocation?: string;
 
@@ -181,6 +187,7 @@ export interface DivorceChatData {
   maintenanceReasons?: string[];
 
   // Other Orders
+  hasOtherOrders: boolean;
   otherOrders?: string;
 
   // Children check
@@ -267,8 +274,11 @@ export const initialDivorceChatData: DivorceChatData = {
   spouseDateOfBirth: '',
   spouseAddressKnown: true,
   spouseMailingAddress: '',
+  spouseSsnKnown: true,
   spouseSsn4: '',
+  spousePhoneKnown: true,
   spousePhone: '',
+  spouseEmailKnown: true,
   spouseEmail: '',
 
   meetsResidencyRequirement: false,
@@ -278,6 +288,8 @@ export const initialDivorceChatData: DivorceChatData = {
   marriageBrokenBeyondRepair: true,
   wantsConciliation: false,
   wantsMaidenName: false,
+
+  hasOtherOrders: false,
 
   hasPropertyAgreement: false,
   allPropertyCovered: false,

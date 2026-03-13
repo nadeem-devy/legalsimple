@@ -481,6 +481,16 @@ export function DivorceChatInterface({
         }
       }
 
+      // Pregnancy due date validation - must be in the future
+      if (questionId.includes("pregnancy") && questionId.includes("due")) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (dateValue < today) {
+          setValidationError("The due date must be a future date. If the child has already been born, you may need to use the Divorce WITH Children form instead.");
+          return;
+        }
+      }
+
       // Date of separation validation
       if (questionId.includes("separation") && questionId.includes("date")) {
         // Try to get marriage date from collected data
@@ -676,6 +686,8 @@ export function DivorceChatInterface({
     setCurrentInput(value);
     if (currentQuestion?.type === "yesno" || currentQuestion?.type === "select") {
       setTimeout(() => {
+        // Save current state to history before processing (enables undo)
+        setStateHistory(prev => [...prev, chatState]);
         const newState = processAnswer(chatState, value);
         setCurrentInput("");
         setChatState(processCurrentQuestion(newState));
@@ -958,14 +970,15 @@ export function DivorceChatInterface({
           </div>
         );
 
-      case "date":
+      case "date": {
+        const isDueDateQuestion = currentQuestion.id.toLowerCase().includes("due_date") || currentQuestion.id.toLowerCase().includes("due");
         return (
           <div className="flex gap-3">
             <DateDropdownPicker
               value={dateValue}
               onChange={setDateValue}
               fromYear={1940}
-              toYear={new Date().getFullYear()}
+              toYear={isDueDateQuestion ? new Date().getFullYear() + 1 : new Date().getFullYear()}
             />
             <Button
               onClick={handleSubmit}
@@ -976,6 +989,7 @@ export function DivorceChatInterface({
             </Button>
           </div>
         );
+      }
 
       case "currency":
         return (
