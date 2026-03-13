@@ -202,9 +202,12 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
         {/* PARAGRAPH: Military Service */}
         {military?.isMilitary && (
           <NumberedParagraph num={++paraNum}>
-            {military.isDeployed
-              ? `A party to this action is a member of the U.S. Armed Forces and is currently deployed${military.deploymentLocation ? ` at ${military.deploymentLocation}` : ''}.`
-              : 'A party to this action is a member of the U.S. Armed Forces and is not currently deployed.'}
+            {(() => {
+              const militaryParty = military.who === 'spouse' ? 'Respondent' : 'Petitioner';
+              return military.isDeployed
+                ? `${militaryParty} is a member of the U.S. Armed Forces and is currently deployed${military.deploymentLocation ? ` at ${military.deploymentLocation}` : ''}.`
+                : `${militaryParty} is a member of the U.S. Armed Forces and is not currently deployed.`;
+            })()}
           </NumberedParagraph>
         )}
 
@@ -215,7 +218,7 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
 
         {/* PARAGRAPH 3: Marriage */}
         <NumberedParagraph num={++paraNum}>
-          Petitioner and Respondent were married on {courtDate(marriage.date)}{marriage.separationDate ? ` and separated on ${courtDate(marriage.separationDate)}` : ''}. This is a {covenantLabel} marriage.
+          Petitioner and Respondent were married on {courtDate(marriage.date)}{marriage.county && marriage.state ? ` in ${marriage.county} County, ${marriage.state}` : marriage.county ? ` in ${marriage.county} County` : ''}{marriage.separationDate ? ` and separated on ${courtDate(marriage.separationDate)}` : ''}. This is a {covenantLabel} marriage.
         </NumberedParagraph>
 
         {/* PARAGRAPH 4: Irretrievably broken */}
@@ -507,9 +510,9 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
         {/* PROPERTY AND DEBTS - Combined with lettered sub-items */}
         <NumberedParagraph num={++paraNum}>
           The parties have acquired certain community and jointly owned property and community or joint debts during the marriage. {property.hasAgreement && property.allCovered
-            ? 'The parties have reached an agreement regarding the division of community property and debts, which is incorporated herein by reference.'
+            ? `The parties have reached an agreement regarding the division of community property and debts${property.agreementDetails ? `, as follows: ${property.agreementDetails}` : ', which is incorporated herein by reference'}.`
             : property.hasAgreement
-            ? 'The parties have reached a partial agreement regarding the division of community property and debt. The remaining community property and debt shall be divided as follows:'
+            ? `The parties have reached a partial agreement regarding the division of community property and debt${property.agreementDetails ? `: ${property.agreementDetails}` : ''}. The remaining community property and debt shall be divided as follows:`
             : 'There is no agreement as to the division of community property and debt, but all community property and debt shall be divided and a fair and just allocation of such property and responsibility for payment of such debts should be made by the Court as follows:'}
         </NumberedParagraph>
 
