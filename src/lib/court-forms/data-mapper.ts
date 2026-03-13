@@ -101,6 +101,7 @@ export interface NormalizedPDFData {
     hasDrugConviction: boolean;
     drugConvictionUnaware?: boolean;
     drugConvictionParty?: string;
+    hasAttendedParentInfoProgram?: boolean;
   };
 
   // Child support
@@ -465,6 +466,8 @@ function mapDivorceNoChildrenData(data: DivorceChatData): NormalizedPDFData {
     nameRestoration: {
       petitionerWants: data.wantsMaidenName || false,
       petitionerName: data.maidenName,
+      respondentWants: data.spouseWantsMaidenName || false,
+      respondentName: data.spouseMaidenName,
     },
 
     property: {
@@ -567,6 +570,8 @@ function mapDivorceWithChildrenData(data: DivorceWithChildrenChatData): Normaliz
 
     marriage: {
       date: data.dateOfMarriage || '',
+      county: data.marriageCountyState ? data.marriageCountyState.split(',')[0]?.trim() : undefined,
+      state: data.marriageCountyState ? data.marriageCountyState.split(',')[1]?.trim() : undefined,
       meetsResidency: data.meetsResidencyRequirement || false,
       isPregnant: data.isPregnant || false,
       pregnancyDueDate: data.pregnancyDueDate,
@@ -604,11 +609,13 @@ function mapDivorceWithChildrenData(data: DivorceWithChildrenChatData): Normaliz
 
     safetyIssues: {
       hasDomesticViolence: data.hasDomesticViolence || false,
+      domesticViolenceCommittedBy: data.domesticViolenceCommittedBy,
       domesticViolenceOption: data.domesticViolenceOption,
       domesticViolenceExplanation: data.domesticViolenceExplanation,
       hasDrugConviction: data.hasDrugConviction || false,
       drugConvictionUnaware: data.drugConvictionUnaware || false,
       drugConvictionParty: data.drugConvictionParty,
+      hasAttendedParentInfoProgram: data.hasAttendedParentInfoProgram || false,
     },
 
     childSupport: {

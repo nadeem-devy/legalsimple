@@ -12,8 +12,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { DateDropdownPicker } from "@/components/ui/date-dropdown-picker";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -24,7 +24,6 @@ import {
   FileText,
   Info,
   ArrowRight,
-  CalendarIcon,
   Home,
   Car,
   PiggyBank,
@@ -324,7 +323,7 @@ export function DivorceWithChildrenChatInterface({
   const [savedCaseId, setSavedCaseId] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   const [dateValue, setDateValue] = useState<Date | undefined>(undefined);
-  const [dateOpen, setDateOpen] = useState(false);
+  // dateOpen state removed - DateDropdownPicker manages its own state
   const [searchFilter, setSearchFilter] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isRefining, setIsRefining] = useState(false);
@@ -682,10 +681,15 @@ export function DivorceWithChildrenChatInterface({
     if (currentQuestion?.type === "yesno" || currentQuestion?.type === "select") {
       // Save current state to history
       setStateHistory(prev => [...prev, chatState]);
-      setTimeout(() => {
+      setTimeout(async () => {
         const newState = processAnswer(chatState, value);
         setCurrentInput("");
         setChatState(processCurrentQuestion(newState));
+
+        // If this answer completed the flow, trigger save
+        if (newState.isComplete) {
+          await saveIntakeData(newState.data);
+        }
       }, 300);
     }
   };
@@ -777,7 +781,7 @@ export function DivorceWithChildrenChatInterface({
         return (
           <div className="space-y-3">
             {/* Show redirect to Divorce Without Children if stopped due to not having children */}
-            {(currentQuestion.id === "without_children_redirect" || currentQuestion.id === "without_children_redirect_2") && (
+            {currentQuestion.id === "without_children_redirect" && (
               <Button
                 onClick={() => router.push("/intake/divorce-chat")}
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
@@ -968,44 +972,16 @@ export function DivorceWithChildrenChatInterface({
           </div>
         );
 
-      case "date":
+      case "date": {
+        const isDueDateQuestion = currentQuestion.id.toLowerCase().includes("due_date") || currentQuestion.id.toLowerCase().includes("due");
         return (
           <div className="flex gap-3">
-            <Popover open={dateOpen} onOpenChange={setDateOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "flex-1 h-12 justify-start text-left font-normal rounded-xl border-slate-200",
-                    !dateValue && "text-slate-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-5 w-5 text-slate-400" />
-                  {dateValue ? format(dateValue, "MMMM d, yyyy") : "Select date..."}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dateValue}
-                  onSelect={(date) => {
-                    setDateValue(date);
-                    setDateOpen(false);
-                  }}
-                  initialFocus
-                  captionLayout="dropdown"
-                  fromYear={1940}
-                  toYear={new Date().getFullYear()}
-                  defaultMonth={
-                    currentQuestion?.id === 'date_of_birth' || currentQuestion?.id === 'spouse_date_of_birth'
-                      ? new Date(1990, 0)
-                      : currentQuestion?.id === 'child_dob'
-                      ? new Date(new Date().getFullYear() - 5, 0)
-                      : undefined
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+            <DateDropdownPicker
+              value={dateValue}
+              onChange={setDateValue}
+              fromYear={1940}
+              toYear={isDueDateQuestion ? new Date().getFullYear() + 1 : new Date().getFullYear()}
+            />
             <Button
               onClick={handleSubmit}
               disabled={!dateValue}
@@ -1015,6 +991,7 @@ export function DivorceWithChildrenChatInterface({
             </Button>
           </div>
         );
+      }
 
       case "currency":
         return (

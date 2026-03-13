@@ -167,6 +167,7 @@ export interface DivorceWithChildrenChatData {
   phone: string;
   email: string;
   dateOfMarriage: string;
+  marriageCountyState?: string;
 
   // Spouse Information (Respondent)
   spouseFullName: string;
@@ -176,6 +177,7 @@ export interface DivorceWithChildrenChatData {
   spouseMailingAddress: string;
   spouseSsn4: string;
   spousePhone: string;
+  spouseEmailKnown: boolean;
   spouseEmail: string;
 
   // Residency & Status
@@ -203,6 +205,9 @@ export interface DivorceWithChildrenChatData {
   petitionerBiologicalRole?: 'mother' | 'father';
   otherBioParentName?: string;
   otherBioParentAddress?: string;
+
+  // Parent Information Program
+  hasAttendedParentInfoProgram: boolean;
 
   // Domestic Violence
   hasDomesticViolence: boolean;
@@ -373,6 +378,7 @@ export const initialDivorceWithChildrenChatData: DivorceWithChildrenChatData = {
   spouseMailingAddress: '',
   spouseSsn4: '',
   spousePhone: '',
+  spouseEmailKnown: true,
   spouseEmail: '',
 
   meetsResidencyRequirement: false,
@@ -386,6 +392,8 @@ export const initialDivorceWithChildrenChatData: DivorceWithChildrenChatData = {
   childrenMeetResidency: false,
   childrenResideWith: 'both',
   hasChildrenBornBeforeMarriage: false,
+
+  hasAttendedParentInfoProgram: false,
 
   hasDomesticViolence: false,
   hasDrugConviction: false,

@@ -101,6 +101,8 @@ export interface DivorceChatData {
   wantsConciliation: boolean;
   wantsMaidenName: boolean;
   maidenName?: string;
+  spouseWantsMaidenName?: boolean;
+  spouseMaidenName?: string;
 
   // Military
   isMilitary: boolean;

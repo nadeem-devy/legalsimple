@@ -138,6 +138,15 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     description: 'This should match your marriage certificate.',
     tooltip: 'The marriage date establishes the beginning of your marital community, which affects property division.',
     required: true,
+    nextQuestionId: 'marriage_county_state',
+  },
+  {
+    id: 'marriage_county_state',
+    type: 'text',
+    question: 'In what county and state were you married?',
+    placeholder: 'e.g., Maricopa County, Arizona',
+    tooltip: 'The location of marriage is included in the petition for the court record.',
+    required: true,
     nextQuestionId: 'spouse_intro',
   },
 
@@ -207,13 +216,23 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     nextQuestionId: 'spouse_email',
   },
   {
+    id: 'spouse_email_known',
+    type: 'yesno',
+    question: "Do you know your spouse's email address?",
+    tooltip: 'An email address can help facilitate communication and document sharing during the divorce process.',
+    required: true,
+    nextQuestionMap: {
+      'yes': 'spouse_email',
+      'no': 'spouse_gender',
+    },
+  },
+  {
     id: 'spouse_email',
     type: 'email',
     question: "What is your spouse's email address?",
-    description: 'If you don\'t know, you can skip this field or type "unknown".',
-    placeholder: 'spouse@example.com or type "unknown"',
+    placeholder: 'spouse@example.com',
     tooltip: 'An email address can help facilitate communication during the divorce process.',
-    required: false,
+    required: true,
     nextQuestionId: 'spouse_gender',
   },
   {
@@ -349,7 +368,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     tooltip: 'Arizona is a "no-fault" divorce state. This means you only need to state that the marriage is "irretrievably broken" to file for divorce.',
     required: true,
     nextQuestionMap: {
-      'yes': 'confirm_minor_children',
+      'yes': 'children_intro',
       'no': 'conciliation_check',
     },
   },
@@ -362,7 +381,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'conciliation_stop',
-      'no': 'confirm_minor_children',
+      'no': 'children_intro',
     },
   },
   {
@@ -374,23 +393,6 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
   // =====================
   // CHILDREN SECTION (Q21-Q27)
   // =====================
-  {
-    id: 'confirm_minor_children',
-    type: 'yesno',
-    question: 'Do you have minor children with your spouse?',
-    description: 'This confirms you should continue with this form for cases with children.',
-    tooltip: 'This is a confirmation step to ensure you are completing the correct form.',
-    required: true,
-    nextQuestionMap: {
-      'yes': 'children_intro',
-      'no': 'without_children_redirect_2',
-    },
-  },
-  {
-    id: 'without_children_redirect_2',
-    type: 'stop',
-    question: "Since you confirmed you do not have minor children with your spouse, you should complete the Petition WITHOUT Children form instead.\n\nClick the button below to start the correct form.",
-  },
   {
     id: 'children_intro',
     type: 'info',
@@ -539,7 +541,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'domestic_violence_who',
-      'no': 'drug_conviction_check',
+      'no': 'parent_info_program_check',
     },
   },
   {
@@ -573,7 +575,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     tooltip: 'Arizona law creates a presumption against awarding legal decision-making to a parent who has committed domestic violence.',
     required: true,
     nextQuestionMap: {
-      'no_joint_decision': 'drug_conviction_check',
+      'no_joint_decision': 'parent_info_program_check',
       'joint_despite_violence': 'domestic_violence_explanation',
     },
   },
@@ -583,6 +585,19 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     question: 'Please explain why joint legal decision making is still in the best interests of the child/children despite the domestic violence:',
     placeholder: 'Explain the circumstances...',
     tooltip: 'The court will consider your explanation when determining custody arrangements.',
+    required: true,
+    nextQuestionId: 'parent_info_program_check',
+  },
+
+  // =====================
+  // PARENT INFORMATION PROGRAM
+  // =====================
+  {
+    id: 'parent_info_program_check',
+    type: 'yesno',
+    question: 'Have you attended the Parent Information Program class?',
+    description: 'Arizona law (A.R.S. §25-352) requires parents to attend a Parent Information Program class when there are minor children involved in a divorce.',
+    tooltip: 'This is a court-mandated educational program that covers the impact of divorce on children, co-parenting strategies, and conflict resolution.',
     required: true,
     nextQuestionId: 'drug_conviction_check',
   },
@@ -830,7 +845,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     type: 'textarea',
     question: 'Please describe your desired parenting time schedule in detail.',
     description: 'Include which days/times each parent will have the children, exchange times, and any other specifics. Please use our AI assist feature to refine your answer for the Petition.',
-    placeholder: 'e.g., Father shall have the children every other weekend from Friday at 6:00 PM to Sunday at 6:00 PM, and every Wednesday from 3:00 PM to 7:00 PM...',
+    placeholder: 'e.g., Petitioner shall have the children every other weekend from Friday at 6:00 PM to Sunday at 6:00 PM, and every Wednesday from 3:00 PM to 7:00 PM...',
     tooltip: 'Be as specific as possible. This will be included in your court filing exactly as written.',
     required: true,
     nextQuestionId: 'supervised_check',
@@ -1410,12 +1425,13 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'property_agreement_complete',
-    type: 'yesno',
-    question: 'Does this account for ALL of your community property, or is there community property for which an agreement has not been reached?',
+    type: 'select',
+    question: 'Does this agreement cover all of your community property?',
     options: [
-      { value: 'yes', label: 'Yes, this covers everything' },
-      { value: 'no', label: 'No, there is more property to discuss' },
+      { value: 'yes', label: 'This accounts for all community property', description: 'Our agreement covers everything — no additional property needs to be divided' },
+      { value: 'no', label: 'There is still community property for which an agreement has not been reached', description: 'We need to address additional assets or debts beyond what we\'ve agreed upon' },
     ],
+    tooltip: 'We need to know if there are additional assets or debts that need to be addressed in the petition beyond what you\'ve already agreed upon.',
     required: true,
     nextQuestionMap: {
       'yes': 'separate_property_check',
@@ -1733,9 +1749,25 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'retirement_division',
-    type: 'textarea',
+    type: 'select',
     question: 'How do you propose dividing this retirement account?',
-    placeholder: 'e.g., Split community portion 50/50, owner keeps entire account, etc.',
+    options: [
+      {
+        value: 'i_keep',
+        label: 'I keep this account',
+        description: 'I keep this retirement account and all of the funds therein as my sole and separate property',
+      },
+      {
+        value: 'spouse_keeps',
+        label: 'My spouse keeps this account',
+        description: 'My spouse keeps this retirement account and all of the funds therein as their sole and separate property',
+      },
+      {
+        value: 'split_50_50',
+        label: 'Divide the community portion 50/50',
+        description: 'We divide the community portion of this account equally between both parties via a Qualified Domestic Relations Order (QDRO)',
+      },
+    ],
     required: true,
     nextQuestionId: 'more_retirement',
   },

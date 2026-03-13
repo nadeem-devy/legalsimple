@@ -282,6 +282,18 @@ export function processAnswer(state: ChatState, answer: string): ChatState {
     }
   }
 
+  // Skip legal_decision_making if DV + no_joint_decision was already selected
+  if (nextQuestionId === 'legal_decision_making' && newData.hasDomesticViolence && newData.domesticViolenceOption === 'no_joint_decision') {
+    // Already determined: no joint legal decision making for the violent party
+    // Set the appropriate value based on who committed violence
+    if (newData.domesticViolenceCommittedBy === 'respondent') {
+      newData.legalDecisionMaking = 'petitioner_sole';
+    } else {
+      newData.legalDecisionMaking = 'respondent_sole';
+    }
+    nextQuestionId = 'parenting_time_schedule';
+  }
+
   // Route maiden name correctly (Fix #7)
   // When petitioner enters maiden name and spouse also wants restoration, go to spouse_maiden_name next
   if (question.id === 'my_maiden_name' && newData.spouseWantsMaidenName) {
@@ -355,6 +367,9 @@ function updateDataFromAnswer(
     case 'date_of_marriage':
       data.dateOfMarriage = answer;
       break;
+    case 'marriage_county_state':
+      data.marriageCountyState = answer;
+      break;
 
     // Spouse Information
     case 'spouse_full_name':
@@ -377,6 +392,12 @@ function updateDataFromAnswer(
       break;
     case 'spouse_phone':
       data.spousePhone = answer;
+      break;
+    case 'spouse_email_known':
+      data.spouseEmailKnown = answer.toLowerCase() === 'yes';
+      if (answer.toLowerCase() === 'no') {
+        data.spouseEmail = '';
+      }
       break;
     case 'spouse_email':
       data.spouseEmail = answer;
@@ -483,6 +504,11 @@ function updateDataFromAnswer(
       break;
     case 'domestic_violence_explanation':
       data.domesticViolenceExplanation = answer;
+      break;
+
+    // Parent Information Program
+    case 'parent_info_program_check':
+      data.hasAttendedParentInfoProgram = answer.toLowerCase() === 'yes';
       break;
 
     // Drug/DUI Conviction

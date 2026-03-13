@@ -103,12 +103,17 @@ function formatMaintenanceReasonSentence(reason: string, party: string): string 
   }
 }
 
+// Check if a text value is a negative/empty response (e.g. "nothing", "none", "n/a")
+function isNegativeResponse(text: string | undefined): boolean {
+  if (!text) return true;
+  const normalized = text.toLowerCase().trim();
+  if (normalized.length === 0) return true;
+  return ['no', 'none', 'n/a', 'na', 'nothing', 'no.', 'none.', 'nope', 'not at this time'].includes(normalized);
+}
+
 // Check if "other orders" is a negative/empty response
 function hasActualOtherOrders(otherOrders: string | undefined): boolean {
-  if (!otherOrders) return false;
-  const normalized = otherOrders.toLowerCase().trim();
-  if (normalized.length === 0) return false;
-  return !['no', 'none', 'n/a', 'na', 'nothing', 'no.', 'none.', 'nope', 'not at this time'].includes(normalized);
+  return !isNegativeResponse(otherOrders);
 }
 
 export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
@@ -273,7 +278,7 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
 
             {/* Domestic violence disclosure */}
             <NumberedParagraph num={++paraNum}>
-              Petitioner alleges that {safetyIssues?.hasDomesticViolence ? 'there has been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member' : 'there has not been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member'}.{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ' Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to the party who committed domestic violence.' : ''}{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ' Despite the history of domestic violence, Petitioner avers that it would still be in the best interests of the children for the parties to share joint legal decision-making.' : ''}
+              Petitioner alleges that {safetyIssues?.hasDomesticViolence ? 'there has been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member' : 'there has not been an act of domestic violence as defined in A.R.S. §13-3601 involving the parties or a household member'}.{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'no_joint_decision' ? ` Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to ${safetyIssues.domesticViolenceCommittedBy === 'respondent' ? 'Respondent' : safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'the party who committed domestic violence'}.` : ''}{safetyIssues?.hasDomesticViolence && safetyIssues.domesticViolenceOption === 'joint_despite_violence' ? ` Despite the history of domestic violence committed by ${safetyIssues.domesticViolenceCommittedBy === 'respondent' ? 'Respondent' : 'Petitioner'}, Petitioner avers that it would still be in the best interests of the children for the parties to share joint legal decision-making.` : ''}
             </NumberedParagraph>
 
             {/* Drug/DUI disclosure */}
@@ -282,6 +287,8 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
                 ? 'Petitioner has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'
                 : safetyIssues?.hasDrugConviction && safetyIssues.drugConvictionParty === 'spouse'
                 ? 'Respondent has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'
+                : safetyIssues?.drugConvictionUnaware
+                ? 'Petitioner has not been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months, but is unaware whether Respondent has been convicted of such an offense.'
                 : 'Neither party has been convicted for a drug offense or driving under the influence of drugs or alcohol in the last twelve (12) months.'}
             </NumberedParagraph>
 
@@ -457,14 +464,14 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
             {data.extracurricular && (
               <NumberedParagraph num={++paraNum}>
                 {data.extracurricular.option === 'both_agree_split'
-                  ? 'Both parties must agree to any extracurricular activities for the children, and costs shall be split equally between the parties.'
+                  ? 'Petitioner requests that both parties must agree to any extracurricular activities for the children, and costs shall be split equally between the parties.'
                   : data.extracurricular.option === 'each_selects_pays'
-                  ? 'Each parent may select and enroll the children in extracurricular activities during their parenting time, and each parent shall be responsible for the costs of activities they select.'
+                  ? 'Petitioner requests that each parent may select and enroll the children in extracurricular activities during their parenting time, and each parent shall be responsible for the costs of activities they select.'
                   : data.extracurricular.option === 'each_selects_limit_split'
-                  ? `Each parent may select and enroll the children in extracurricular activities, up to ${data.extracurricular.limit || 'a reasonable number'} activities per year. Costs shall be split equally between the parties.`
+                  ? `Petitioner requests that each parent may select and enroll the children in extracurricular activities, up to ${data.extracurricular.limit || 'a reasonable number'} activities per year. Costs shall be split equally between the parties.`
                   : data.extracurricular.option === 'other' && data.extracurricular.otherDetails
-                  ? `The parties agree to the following arrangement for extracurricular activities: ${data.extracurricular.otherDetails}`
-                  : 'Extracurricular activities shall be determined in the best interests of the children.'}
+                  ? `Petitioner requests the following arrangement for extracurricular activities: ${data.extracurricular.otherDetails}`
+                  : 'Petitioner requests that extracurricular activities be determined in the best interests of the children.'}
               </NumberedParagraph>
             )}
 
@@ -516,7 +523,7 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
             : 'There is no agreement as to the division of community property and debt, but all community property and debt shall be divided and a fair and just allocation of such property and responsibility for payment of such debts should be made by the Court as follows:'}
         </NumberedParagraph>
 
-        {!property.hasAgreement && property.divisionPreference !== 'court_decides' && (() => {
+        {((!property.hasAgreement && property.divisionPreference !== 'court_decides') || (property.hasAgreement && !property.allCovered)) && (() => {
           let letterNum = 97; // ASCII 'a'
           return (
             <>
@@ -573,7 +580,11 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
                     ? property.retirement.map((acct, i) => {
                         const owner = acct.ownerName === 'me' ? 'Petitioner' : 'Respondent';
                         const type = acct.accountType === 'other' ? (acct.accountTypeOther || 'retirement account') : acct.accountType?.toUpperCase();
-                        return `${i > 0 ? '; ' : ''}The ${type} account held by ${owner}${acct.administrator ? ` at ${acct.administrator}` : ''} — ${acct.proposedDivision || 'to be divided as the court deems just and proper'}`;
+                        const divisionText = acct.proposedDivision === 'i_keep' ? `should be awarded to Petitioner as ${petitioner.gender === 'male' ? 'his' : 'her'} sole and separate property`
+                      : acct.proposedDivision === 'spouse_keeps' ? `should be awarded to Respondent as ${petitioner.gender === 'male' ? 'her' : 'his'} sole and separate property`
+                      : acct.proposedDivision === 'split_50_50' ? 'should be divided equally between the parties'
+                      : acct.proposedDivision || 'to be divided as the court deems just and proper';
+                    return `${i > 0 ? '; ' : ''}The ${type} account held by ${owner}${acct.administrator ? ` at ${acct.administrator}` : ''} ${divisionText}`;
                       }).join('')
                     : 'Each party should be awarded any retirement account, pension plans, or other deferred compensation in his/her separate name as their sole and separate property without any offsets'};
                 </LetteredItem>
@@ -640,19 +651,19 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
         })()}
 
         {/* SEPARATE DEBTS */}
-        {debts.hasSeparateDebt && (debts.petitionerSeparateDebt || debts.respondentSeparateDebt) && (() => {
+        {debts.hasSeparateDebt && (!isNegativeResponse(debts.petitionerSeparateDebt) || !isNegativeResponse(debts.respondentSeparateDebt)) && (() => {
           let sepDebtLetterNum = 97; // ASCII 'a'
           return (
             <View wrap={false}>
               <NumberedParagraph num={++paraNum}>
                 The parties have the following separate debts that should be confirmed to each party:
               </NumberedParagraph>
-              {debts.petitionerSeparateDebt && debts.petitionerSeparateDebt.split(',').map((item, i) => (
+              {!isNegativeResponse(debts.petitionerSeparateDebt) && debts.petitionerSeparateDebt!.split(',').map((item, i) => (
                 <LetteredItem key={`sd-pet-${i}`} letter={String.fromCharCode(sepDebtLetterNum++)}>
                   {item.trim()} - responsibility of Petitioner
                 </LetteredItem>
               ))}
-              {debts.respondentSeparateDebt && debts.respondentSeparateDebt.split(',').map((item, i) => (
+              {!isNegativeResponse(debts.respondentSeparateDebt) && debts.respondentSeparateDebt!.split(',').map((item, i) => (
                 <LetteredItem key={`sd-res-${i}`} letter={String.fromCharCode(sepDebtLetterNum++)}>
                   {item.trim()} - responsibility of Respondent
                 </LetteredItem>
@@ -680,10 +691,17 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
           </NumberedParagraph>
         )}
 
-        {/* NAME RESTORATION */}
+        {/* NAME RESTORATION - Petitioner */}
         {nameRestoration?.petitionerWants && (
           <NumberedParagraph num={++paraNum}>
             {petitioner.name || 'Petitioner'} requests that {petitioner.gender === 'male' ? 'his' : 'her'} former name of {nameRestoration.petitionerName || '_____________________'} be restored.
+          </NumberedParagraph>
+        )}
+
+        {/* NAME RESTORATION - Respondent */}
+        {nameRestoration?.respondentWants && (
+          <NumberedParagraph num={++paraNum}>
+            Petitioner requests that Respondent&apos;s former name of {nameRestoration.respondentName || '_____________________'} be restored.
           </NumberedParagraph>
         )}
 
