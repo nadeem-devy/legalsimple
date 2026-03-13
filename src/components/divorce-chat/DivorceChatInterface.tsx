@@ -685,12 +685,47 @@ export function DivorceChatInterface({
   const handleOptionSelect = (value: string) => {
     setCurrentInput(value);
     if (currentQuestion?.type === "yesno" || currentQuestion?.type === "select") {
-      setTimeout(() => {
+      setTimeout(async () => {
         // Save current state to history before processing (enables undo)
         setStateHistory(prev => [...prev, chatState]);
         const newState = processAnswer(chatState, value);
         setCurrentInput("");
         setChatState(processCurrentQuestion(newState));
+
+        // If this answer completed the flow, trigger save
+        if (newState.isComplete) {
+          setIsSubmitting(true);
+          setSaveFailed(false);
+          try {
+            const response = await fetch("/api/cases/save-intake", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                caseId,
+                intakeType: "divorce_no_children_chat",
+                data: newState.data,
+              }),
+            });
+            if (!response.ok) throw new Error(`Failed (${response.status})`);
+            const result = await response.json();
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(historyKey);
+            const resolvedCaseId = result.caseId || caseId;
+            setSavedCaseId(resolvedCaseId);
+            toast.success("Questionnaire completed successfully!");
+            if (onComplete) {
+              onComplete(newState.data);
+            } else {
+              router.push(`/cases/${resolvedCaseId}?generate=true`);
+            }
+          } catch (error) {
+            console.error("Error saving intake:", error);
+            setSaveFailed(true);
+            toast.error("Failed to save your responses. Please try again.");
+          } finally {
+            setIsSubmitting(false);
+          }
+        }
       }, 300);
     }
   };
