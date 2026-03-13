@@ -136,6 +136,17 @@ export function processCurrentQuestion(state: ChatState): ChatState {
     question.type
   );
 
+  // Handle stop questions — set isStopped and clear currentQuestionId
+  if (question.type === 'stop') {
+    return {
+      ...state,
+      messages: [...state.messages, assistantMessage],
+      isStopped: true,
+      stopReason: fullText,
+      currentQuestionId: null,
+    };
+  }
+
   return {
     ...state,
     messages: [...state.messages, assistantMessage],

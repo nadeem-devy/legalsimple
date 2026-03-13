@@ -261,6 +261,16 @@ export function processCurrentQuestion(state: ChatState): ChatState {
       messages: [...currentState.messages, assistantMessage],
     };
 
+    // Handle stop questions — set isStopped and clear currentQuestionId
+    if (question.type === 'stop') {
+      return {
+        ...currentState,
+        isStopped: true,
+        stopReason: fullText,
+        currentQuestionId: null,
+      };
+    }
+
     // --- Check for auto-submit with pre-fill data ---
     if (
       currentState.data.hasUploadedOrders &&

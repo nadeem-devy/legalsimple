@@ -1242,20 +1242,6 @@ export function DivorceChatInterface({
           </div>
         ))}
 
-        {/* Stop State */}
-        {chatState.isStopped && (
-          <div className="flex gap-3 justify-start">
-            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-md">
-              <AlertTriangle className="h-4 w-4 text-white" />
-            </div>
-            <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-red-50 border border-red-200">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-red-800">
-                {chatState.stopReason}
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* Completion State */}
         {chatState.isComplete && (
           <div className="flex gap-3 justify-start">
@@ -1359,6 +1345,15 @@ export function DivorceChatInterface({
       {chatState.isStopped && (
         <div className="px-6 py-5 bg-slate-50 border-t border-slate-200">
           <div className="space-y-3">
+            {chatState.stopReason?.includes("children") && (
+              <Button
+                onClick={() => router.push("/intake/divorce-with-children")}
+                className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-xl"
+              >
+                Start Divorce With Children Form
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => router.push("/chat")}
