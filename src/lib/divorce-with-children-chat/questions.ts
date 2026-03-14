@@ -368,7 +368,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     tooltip: 'Arizona is a "no-fault" divorce state. This means you only need to state that the marriage is "irretrievably broken" to file for divorce.',
     required: true,
     nextQuestionMap: {
-      'yes': 'children_intro',
+      'yes': 'child_name',
       'no': 'conciliation_check',
     },
   },
@@ -381,7 +381,7 @@ export const DIVORCE_WITH_CHILDREN_QUESTIONS: ChatQuestion[] = [
     required: true,
     nextQuestionMap: {
       'yes': 'conciliation_stop',
-      'no': 'children_intro',
+      'no': 'child_name',
     },
   },
   {

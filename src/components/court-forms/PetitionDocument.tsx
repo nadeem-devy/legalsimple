@@ -27,8 +27,16 @@ function parseAddress(address: string): { street: string; cityStateZip: string }
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
+    // Parse date parts directly to avoid timezone issues
+    const parts = dateStr.split(/[-/T]/);
+    if (parts.length >= 3) {
+      const month = parts[1].padStart(2, '0');
+      const day = parts[2].substring(0, 2).padStart(2, '0');
+      const year = parts[0];
+      return `${month}/${day}/${year}`;
+    }
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'America/Phoenix' });
   } catch {
     return dateStr;
   }
@@ -186,9 +194,9 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
             </View>
 
             <View style={styles.captionRight}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                <Text style={styles.caseNoLabel}>Case Number:</Text>
-                <Text style={styles.caseNoValue}>{''}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={styles.caseNoLabel}>Case Number: </Text>
+                <Text style={[styles.caseNoValue, { borderBottomWidth: 1, borderBottomColor: '#000', minWidth: 140, paddingBottom: 2 }]}>{caseNumber || ''}</Text>
               </View>
               <Text style={styles.documentTitle}>
                 PETITION FOR DISSOLUTION OF {hasChildren ? 'A NON-COVENANT MARRIAGE (DIVORCE) WITH MINOR CHILDREN' : 'A NON-COVENANT MARRIAGE (DIVORCE) WITHOUT CHILDREN'}
@@ -532,7 +540,7 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
             <View key={i} style={[styles.fieldRow, { marginLeft: 36 }]}>
               <Text style={styles.fieldLabel}>Property {i + 1}:</Text>
               <Text style={styles.fieldLine}>
-                {home.address} — {home.divisionOption === 'i_keep' ? 'Awarded to Petitioner' : home.divisionOption === 'spouse_keeps' ? 'Awarded to Respondent' : 'Sell and divide proceeds equally'}
+                {home.address} — {home.divisionOption === 'i_keep' ? 'Awarded to Petitioner, and any debt attached thereto as sole and separate property and debt' : home.divisionOption === 'spouse_keeps' ? 'Awarded to Respondent, and any debt attached thereto as sole and separate property and debt' : 'Sell and divide proceeds equally'}
               </Text>
             </View>
           ))
@@ -627,7 +635,7 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
             <View key={i} style={[styles.fieldRow, { marginLeft: 36 }]}>
               <Text style={styles.fieldLabel}>Account {i + 1}:</Text>
               <Text style={styles.fieldLine}>
-                {acct.accountType}{acct.accountTypeOther ? ` (${acct.accountTypeOther})` : ''} — Owner: {acct.ownerName === 'me' ? 'Petitioner' : 'Respondent'} — Admin: {acct.administrator} — Division: {acct.proposedDivision}
+                {acct.accountType}{acct.accountTypeOther ? ` (${acct.accountTypeOther})` : ''} — Owner: {acct.ownerName === 'me' ? 'Petitioner' : 'Respondent'} — Admin: {acct.administrator} — Division: {acct.proposedDivision === 'i_keep' ? 'Awarded to Petitioner' : acct.proposedDivision === 'spouse_keeps' ? 'Awarded to Respondent' : acct.proposedDivision === 'split_50_50' ? 'Community portion divided equally' : acct.proposedDivision}
               </Text>
             </View>
           ))
@@ -964,9 +972,9 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
               <Text style={styles.subsectionContent}>
                 <Text style={styles.bold}>Domestic Violence:</Text>{' '}
                 {safetyIssues.domesticViolenceOption === 'no_joint_decision'
-                  ? 'A history of domestic violence exists between the parties. Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to the party who committed domestic violence.'
+                  ? `A history of domestic violence exists between the parties. Pursuant to A.R.S. §25-403.03, no joint legal decision-making should be awarded to ${safetyIssues.domesticViolenceCommittedBy === 'respondent' ? 'Respondent' : safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'the party who committed domestic violence'}.`
                   : safetyIssues.domesticViolenceOption === 'joint_despite_violence'
-                  ? 'Domestic violence has occurred in the relationship, but Petitioner avers that it would still be in the best interests of the children for the parties to share joint legal decision-making.'
+                  ? `Domestic violence has occurred in the relationship committed by ${safetyIssues.domesticViolenceCommittedBy === 'respondent' ? 'Respondent' : safetyIssues.domesticViolenceCommittedBy === 'petitioner' ? 'Petitioner' : 'a party'}, but Petitioner avers that it would still be in the best interests of the children for the parties to share joint legal decision-making.`
                   : 'A history of domestic violence exists between the parties.'}
               </Text>
             </View>
@@ -1200,7 +1208,48 @@ export function PetitionDocument({ data, caseNumber }: PetitionDocumentProps) {
               <View style={styles.requestRow}>
                 <Text style={styles.requestNumber}>{reqNum++}.</Text>
                 <Text style={styles.requestContent}>
-                  Divide the community property and debts as set forth in this Petition, or as the Court deems just and equitable.
+                  The remaining community property and debt shall be divided as follows:
+                  {'\n'}
+                  {/* Personal Property */}
+                  {property.personalPropertyPreference === 'keep_in_possession'
+                    ? 'Each party shall retain the personal property currently in his/her possession as sole and separate property.'
+                    : property.personalPropertyPreference === 'itemize'
+                    ? `Petitioner shall retain: ${property.personalPropertyMine || 'N/A'}. Respondent shall retain: ${property.personalPropertySpouse || 'N/A'}.`
+                    : ''}
+                  {/* Real Estate */}
+                  {property.hasRealEstate && property.realEstate.length > 0 && (
+                    ' ' + property.realEstate.map((r) => {
+                      const awardedTo = r.divisionOption === 'i_keep' ? 'Petitioner' : r.divisionOption === 'spouse_keeps' ? 'Respondent' : '';
+                      return r.divisionOption === 'sell_split'
+                        ? `The real property located at ${r.address || 'address to be determined'} shall be sold and proceeds divided equally`
+                        : `${awardedTo} shall retain the marital residence located at ${r.address || 'address to be determined'} and any debt attached thereto as their sole and separate property and debt`;
+                    }).join('; ') + '.'
+                  )}
+                  {/* Vehicles */}
+                  {property.hasVehicles && property.vehicles.length > 0 && (
+                    ' ' + property.vehicles.map((v) => {
+                      const awardedTo = v.divisionOption === 'i_keep' ? 'Petitioner' : v.divisionOption === 'spouse_keeps' ? 'Respondent' : '';
+                      return v.divisionOption === 'sell_split'
+                        ? `The ${v.year} ${v.make} ${v.model} shall be sold and proceeds divided equally`
+                        : `${awardedTo} shall retain the ${v.year} ${v.make} ${v.model} and any debt attached thereto as their sole and separate property and debt`;
+                    }).join('; ') + '.'
+                  )}
+                  {/* Bank Accounts */}
+                  {property.bankAccountsStructured && property.bankAccountsStructured.length > 0 && (
+                    ' ' + property.bankAccountsStructured.map((acct) => {
+                      const divText = acct.division === 'i_keep' ? 'awarded to Petitioner' : acct.division === 'spouse_keeps' ? 'awarded to Respondent' : 'divided equally between the parties';
+                      return `The ${formatBankAccountDescription(acct.description)} shall be ${divText}`;
+                    }).join('; ') + '.'
+                  )}
+                  {/* Retirement */}
+                  {property.hasRetirement && property.retirement.length > 0 && (
+                    ' ' + property.retirement.map((acct) => {
+                      const type = acct.accountType === 'other' ? (acct.accountTypeOther || 'retirement account') : acct.accountType?.toUpperCase();
+                      const owner = acct.ownerName === 'me' ? 'Petitioner' : 'Respondent';
+                      const divText = acct.proposedDivision === 'i_keep' ? 'awarded to Petitioner' : acct.proposedDivision === 'spouse_keeps' ? 'awarded to Respondent' : acct.proposedDivision === 'split_50_50' ? 'the community portion divided equally between the parties' : acct.proposedDivision;
+                      return `The ${type} account held by ${owner}${acct.administrator ? ` at ${acct.administrator}` : ''} shall be ${divText}`;
+                    }).join('; ') + '.'
+                  )}
                 </Text>
               </View>
 

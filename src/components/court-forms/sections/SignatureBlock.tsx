@@ -13,6 +13,7 @@ export function SignatureBlock({ data, signature }: SignatureBlockProps) {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'America/Phoenix',
   });
 
   return (

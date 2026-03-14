@@ -420,7 +420,7 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
   {
     id: 'maiden_name_check',
     type: 'yesno',
-    question: 'Do you or your spouse want to restore a former/maiden name?',
+    question: 'Do you want to revert to a maiden name?',
     tooltip: 'A divorce decree can include a court order to restore your name to what it was before the marriage. This makes changing your name on IDs, accounts, and records much easier.',
     required: true,
     nextQuestionMap: {
@@ -861,9 +861,25 @@ export const DIVORCE_CHAT_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'retirement_division',
-    type: 'textarea',
-    question: 'How do you propose dividing this retirement account?',
-    placeholder: 'e.g., Split community portion 50/50, owner keeps entire account, etc.',
+    type: 'select',
+    question: 'How would you like the Court to distribute this retirement account?',
+    options: [
+      {
+        value: 'i_keep',
+        label: 'I keep this account',
+        description: 'I keep this account as my sole and separate property',
+      },
+      {
+        value: 'spouse_keeps',
+        label: 'My spouse keeps this account',
+        description: 'My spouse keeps this account as their sole and separate property',
+      },
+      {
+        value: 'split_50_50',
+        label: 'Divide the community portion 50/50',
+        description: 'The community portion of this account is divided equally between both parties',
+      },
+    ],
     tooltip: 'Only the "community portion" (contributions and growth during the marriage) is typically divided. Contributions from before the marriage may be separate property.',
     required: true,
     nextQuestionId: 'more_retirement',

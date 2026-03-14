@@ -218,7 +218,7 @@ export interface RetirementInfo {
   accountTypeOther?: string; // For "other" type specification
   ownerName: 'me' | 'spouse';
   administrator: string;
-  proposedDivision: string;
+  proposedDivision: 'i_keep' | 'spouse_keeps' | 'split_50_50' | string;
 }
 
 export interface VehicleInfo {

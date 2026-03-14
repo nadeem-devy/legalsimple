@@ -24,6 +24,14 @@ function LineNumbers() {
 function courtDate(dateStr: string | undefined): string {
   if (!dateStr) return '___________';
   try {
+    // Parse date parts directly to avoid timezone issues
+    const parts = dateStr.split(/[-/T]/);
+    if (parts.length >= 3) {
+      const year = parts[0];
+      const month = parts[1].padStart(2, '0');
+      const day = parts[2].substring(0, 2).padStart(2, '0');
+      return `${month}/${day}/${year}`;
+    }
     const date = new Date(dateStr);
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -544,7 +552,7 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
                         ? `${r.requestEquitableLien ? ' Petitioner requests an equitable lien for community funds used toward this property.' : ' Community funds were used toward this property.'}`
                         : ' A disclaimer deed was executed and no community funds were used; this property is the sole and separate property of the titled party.')
                       : '';
-                    return `${i > 0 ? '; ' : ''}${r.divisionOption === 'sell_split' ? `The real property located at ${r.address || 'address to be determined'} should be sold and proceeds divided equally between the parties` : `${awardedTo} should be awarded the real property located at ${r.address || 'address to be determined'} as ${awardedTo}'s sole and separate property`}${disclaimerNote}`;
+                    return `${i > 0 ? '; ' : ''}${r.divisionOption === 'sell_split' ? `The real property located at ${r.address || 'address to be determined'} should be sold and proceeds divided equally between the parties` : `${awardedTo} should be awarded the real property located at ${r.address || 'address to be determined'} and any debt attached thereto as ${awardedTo}'s sole and separate property and debt`}${disclaimerNote}`;
                   }).join('')};
                 </LetteredItem>
               )}
@@ -567,8 +575,8 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
               {property.hasVehicles && property.vehicles.length > 0 && (
                 <LetteredItem letter={String.fromCharCode(letterNum++)}>
                   {property.vehicles.map((v, i) => {
-                    const titledTo = v.titledTo === 'me' ? 'Petitioner' : v.titledTo === 'spouse' ? 'Respondent' : 'both parties';
-                    return `${i > 0 ? '; ' : ''}${titledTo} should be awarded the ${v.year} ${v.make} ${v.model}${v.loanBalance ? `, and all debt attached thereto,` : ''} as ${v.titledTo === 'both' ? 'it should be sold and proceeds divided' : 'his/her sole and separate property and debt without any offsets'}`;
+                    const awardedTo = v.divisionOption === 'i_keep' ? 'Petitioner' : v.divisionOption === 'spouse_keeps' ? 'Respondent' : '';
+                    return `${i > 0 ? '; ' : ''}${v.divisionOption === 'sell_split' ? `The ${v.year} ${v.make} ${v.model} should be sold and proceeds divided equally between the parties` : `${awardedTo} should be awarded the ${v.year} ${v.make} ${v.model} and any debt attached thereto as ${awardedTo === 'Petitioner' ? 'his/her' : 'his/her'} sole and separate property and debt`}`;
                   }).join('')};
                 </LetteredItem>
               )}
@@ -582,7 +590,7 @@ export function PleadingDocument({ data, signature }: PleadingDocumentProps) {
                         const type = acct.accountType === 'other' ? (acct.accountTypeOther || 'retirement account') : acct.accountType?.toUpperCase();
                         const divisionText = acct.proposedDivision === 'i_keep' ? `should be awarded to Petitioner as ${petitioner.gender === 'male' ? 'his' : 'her'} sole and separate property`
                       : acct.proposedDivision === 'spouse_keeps' ? `should be awarded to Respondent as ${petitioner.gender === 'male' ? 'her' : 'his'} sole and separate property`
-                      : acct.proposedDivision === 'split_50_50' ? 'should be divided equally between the parties'
+                      : acct.proposedDivision === 'split_50_50' ? 'the community portion should be divided equally between the parties'
                       : acct.proposedDivision || 'to be divided as the court deems just and proper';
                     return `${i > 0 ? '; ' : ''}The ${type} account held by ${owner}${acct.administrator ? ` at ${acct.administrator}` : ''} ${divisionText}`;
                       }).join('')

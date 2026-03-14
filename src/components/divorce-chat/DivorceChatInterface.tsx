@@ -994,6 +994,7 @@ export function DivorceChatInterface({
                 {isRefining ? "Refining..." : "AI Assist"}
               </button>
             </div>
+            <p className="text-xs text-slate-400 italic">Tip: Type your answer and use the AI Assist button to refine it into legal language.</p>
             <Button
               onClick={handleSubmit}
               disabled={currentQuestion.required && !currentInput.trim()}
@@ -1168,6 +1169,9 @@ export function DivorceChatInterface({
                 </button>
               )}
             </div>
+            {!isNameField && (
+              <p className="text-xs text-slate-400 italic mt-1">Tip: Use AI Assist to refine your answer into legal language.</p>
+            )}
             <Button
               onClick={handleSubmit}
               disabled={currentQuestion.required && !currentInput.trim()}
